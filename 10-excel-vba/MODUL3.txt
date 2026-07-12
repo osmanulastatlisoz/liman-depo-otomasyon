@@ -1,0 +1,628 @@
+' ===================================================================
+' STOK TAKIP CALISMASI - MODUL3
+'
+' NEREYE? → MODUL3'E (yoksa: Alt+F11 → Insert > Module)
+'
+' NASIL?
+'   1. Alt+F11 bas
+'   2. Sol panelde Modul3'e cift tikla (yoksa Insert > Module ile olustur)
+'   3. Icindeki HER SEYI sil (Ctrl+A, Delete)
+'   4. Asagidaki tum kodu yapistir
+'   5. Ctrl+S ile kaydet
+'
+' KULLANILAN SAYFA/SUTUN BILGILERI:
+'   - "STOK HAREKETLERI" sayfa: Personel D (4), Stok E (5)
+'   - "PERSONEL LISTESI" sayfa: AD-SOYAD B (2)
+'   - "DEPO" sayfa: STOK ADI A (1), GUNCEL STOK I (9)
+' ===================================================================
+
+
+' --- Otomatik personel kontrolu ---
+Sub OtomatikPersonelKontrol(hucre As Range)
+    Const HAREKET_SAYFA As String = "STOK HAREKETLERİ"
+    Const PERSONEL_SAYFA As String = "PERSONEL LİSTESİ"
+    Const PERSONEL_AD_SUTUN As Long = 2     ' PERSONEL LISTESI'nde AD-SOYAD B sutunu
+    Const HAREKET_PERSONEL_SUTUN As Long = 4 ' STOK HAREKETLERI'nde PERSONEL ADI D sutunu
+
+    Dim wsHareket As Worksheet
+    Dim wsPersonel As Worksheet
+    Dim wsYedek As Worksheet
+    Set wsHareket = Sheets(HAREKET_SAYFA)
+    Set wsPersonel = Sheets(PERSONEL_SAYFA)
+
+    On Error Resume Next
+    Set wsYedek = Sheets("YEDEK")
+    On Error GoTo 0
+    If wsYedek Is Nothing Then
+        Set wsYedek = Sheets.Add(After:=Sheets(Sheets.Count))
+        wsYedek.Name = "YEDEK"
+        wsYedek.Cells(1, 1).Value = "SATIR"
+        wsYedek.Cells(1, 2).Value = "ESKİ PERSONEL ADI"
+        wsYedek.Cells(1, 3).Value = "YENİ PERSONEL ADI"
+    End If
+
+    Dim yedekSatir As Long
+    yedekSatir = wsYedek.Cells(wsYedek.Rows.Count, 1).End(xlUp).Row + 1
+    If yedekSatir < 2 Then yedekSatir = 2
+
+    Dim pSon As Long
+    pSon = wsPersonel.Cells(wsPersonel.Rows.Count, PERSONEL_AD_SUTUN).End(xlUp).Row
+    If pSon < 2 Then Exit Sub
+
+    Dim pNorm() As String, pOrijinal() As String
+    ReDim pNorm(1 To pSon)
+    ReDim pOrijinal(1 To pSon)
+    Dim pSayisi As Long
+    pSayisi = 0
+
+    Dim i As Long
+    For i = 2 To pSon
+        Dim v As String
+        v = Trim(CStr(wsPersonel.Cells(i, PERSONEL_AD_SUTUN).Value))
+        If v <> "" Then
+            pSayisi = pSayisi + 1
+            pOrijinal(pSayisi) = v
+            pNorm(pSayisi) = NormalizeTR2(UCase(v))
+        End If
+    Next i
+    If pSayisi = 0 Then Exit Sub
+
+    Dim satir As Long
+    satir = hucre.Row
+
+    Dim personel As String
+    personel = Trim(CStr(hucre.Value))
+    If personel = "" Then Exit Sub
+
+    Dim bulundu As Boolean: bulundu = False
+    Dim eslesmeIsmi As String: eslesmeIsmi = ""
+    Dim j As Long
+    For j = 1 To pSayisi
+        If NormalizeTR2(UCase(personel)) = pNorm(j) Then
+            bulundu = True
+            eslesmeIsmi = pOrijinal(j)
+            Exit For
+        End If
+    Next j
+
+    If bulundu Then
+        If personel <> eslesmeIsmi Then
+            wsYedek.Cells(yedekSatir, 1).Value = satir
+            wsYedek.Cells(yedekSatir, 2).Value = personel
+            wsYedek.Cells(yedekSatir, 3).Value = eslesmeIsmi
+            hucre.Value = eslesmeIsmi
+        End If
+        Exit Sub
+    End If
+
+    Dim puan1 As Double, puan2 As Double, puan3 As Double
+    Dim isim1 As String, isim2 As String, isim3 As String
+    puan1 = 0: puan2 = 0: puan3 = 0
+    isim1 = "": isim2 = "": isim3 = ""
+
+    For j = 1 To pSayisi
+        Dim puan As Double
+        puan = BenzerlikPuani2(NormalizeTR2(UCase(personel)), pNorm(j))
+        If puan > puan1 Then
+            puan3 = puan2: isim3 = isim2
+            puan2 = puan1: isim2 = isim1
+            puan1 = puan: isim1 = pOrijinal(j)
+        ElseIf puan > puan2 Then
+            puan3 = puan2: isim3 = isim2
+            puan2 = puan: isim2 = pOrijinal(j)
+        ElseIf puan > puan3 Then
+            puan3 = puan: isim3 = pOrijinal(j)
+        End If
+    Next j
+
+Tekrar:
+    Dim mesaj As String
+    mesaj = "Satir " & satir & " - YANLIS YAZILAN ISIM:" & Chr(10) & _
+            "  """ & personel & """" & Chr(10) & Chr(10) & _
+            "En benzer isimler:" & Chr(10) & _
+            "  1)  " & isim1 & Chr(10) & _
+            "  2)  " & isim2 & Chr(10) & _
+            "  3)  " & isim3 & Chr(10) & Chr(10) & _
+            "  0 = IPTAL (yanlis isim silinecek)" & Chr(10) & _
+            "  Baska bir sey yazarsan arama yapar"
+
+    Dim secim As String
+    secim = InputBox(mesaj, "Personel Duzelt - Satir " & satir)
+
+    Dim yeniIsim As String: yeniIsim = ""
+
+    If secim = "1" Then
+        yeniIsim = isim1
+    ElseIf secim = "2" Then
+        yeniIsim = isim2
+    ElseIf secim = "3" Then
+        yeniIsim = isim3
+    ElseIf secim = "0" Or secim = "" Then
+        hucre.ClearContents
+        Exit Sub
+    Else
+        Dim araKelime As String
+        araKelime = secim
+        Dim sonuclar() As String
+        Dim sonucSayisi As Long
+        ReDim sonuclar(1 To pSayisi)
+        sonucSayisi = 0
+        For j = 1 To pSayisi
+            If InStr(NormalizeTR2(UCase(pOrijinal(j))), NormalizeTR2(UCase(araKelime))) > 0 Then
+                sonucSayisi = sonucSayisi + 1
+                sonuclar(sonucSayisi) = pOrijinal(j)
+            End If
+        Next j
+        If sonucSayisi = 0 Then
+            MsgBox "'" & araKelime & "' iceren isim bulunamadi.", vbExclamation
+            GoTo Tekrar
+        End If
+        Dim sonucMesaj As String
+        sonucMesaj = "Duzeltilecek isim: """ & personel & """" & Chr(10) & Chr(10) & _
+                     "'" & araKelime & "' iceren isimler:" & Chr(10) & Chr(10)
+        Dim k As Long
+        For k = 1 To sonucSayisi
+            sonucMesaj = sonucMesaj & "  " & k & ")  " & sonuclar(k) & Chr(10)
+        Next k
+        sonucMesaj = sonucMesaj & Chr(10) & "Secim yapin (1-" & sonucSayisi & ") veya 0 = Geri don"
+        Dim sonucSecim As String
+        sonucSecim = InputBox(sonucMesaj, "Arama Sonuclari")
+        If sonucSecim = "0" Or sonucSecim = "" Then
+            GoTo Tekrar
+        End If
+        Dim sonucNo As Long
+        sonucNo = Val(sonucSecim)
+        If sonucNo >= 1 And sonucNo <= sonucSayisi Then
+            yeniIsim = sonuclar(sonucNo)
+        Else
+            GoTo Tekrar
+        End If
+    End If
+
+    If yeniIsim <> "" Then
+        wsYedek.Cells(yedekSatir, 1).Value = satir
+        wsYedek.Cells(yedekSatir, 2).Value = personel
+        wsYedek.Cells(yedekSatir, 3).Value = yeniIsim
+        hucre.Value = yeniIsim
+    End If
+End Sub
+
+
+' --- Otomatik stok kontrolu (yazilani direkt arama yapar, kalan miktarli) ---
+Sub OtomatikStokKontrol(hucre As Range)
+    Const DEPO_SAYFA As String = "DEPO"
+    Const STOK_AD_SUTUN As Long = 1     ' DEPO'da A sutunu
+    Const KALAN_SUTUN As Long = 9       ' DEPO'da I sutunu (GUNCEL STOK)
+
+    Dim wsDepo As Worksheet
+    On Error Resume Next
+    Set wsDepo = Sheets(DEPO_SAYFA)
+    On Error GoTo 0
+    If wsDepo Is Nothing Then Exit Sub
+
+    Dim pSon As Long
+    pSon = wsDepo.Cells(wsDepo.Rows.Count, STOK_AD_SUTUN).End(xlUp).Row
+    If pSon < 2 Then Exit Sub
+
+    ' Stoklari ve kalan miktarlari oku
+    Dim pNorm() As String, pOrijinal() As String, pKalan() As Double
+    ReDim pNorm(1 To pSon)
+    ReDim pOrijinal(1 To pSon)
+    ReDim pKalan(1 To pSon)
+    Dim pSayisi As Long
+    pSayisi = 0
+
+    Dim i As Long
+    For i = 2 To pSon
+        Dim v As String
+        v = Trim(CStr(wsDepo.Cells(i, STOK_AD_SUTUN).Value))
+        If v <> "" Then
+            pSayisi = pSayisi + 1
+            pOrijinal(pSayisi) = v
+            pNorm(pSayisi) = NormalizeTR2(UCase(v))
+            Dim kalanDeger As Variant
+            kalanDeger = wsDepo.Cells(i, KALAN_SUTUN).Value
+            If IsNumeric(kalanDeger) Then
+                pKalan(pSayisi) = CDbl(kalanDeger)
+            Else
+                pKalan(pSayisi) = 0
+            End If
+        End If
+    Next i
+    If pSayisi = 0 Then Exit Sub
+
+    Dim satir As Long
+    satir = hucre.Row
+
+    Dim stokAdi As String
+    stokAdi = Trim(CStr(hucre.Value))
+    If stokAdi = "" Then Exit Sub
+
+    ' Tam eslesme kontrolu (Turkce karakter ve buyuk/kucuk fark dahil)
+    Dim bulundu As Boolean: bulundu = False
+    Dim eslesme As String: eslesme = ""
+    Dim j As Long
+    For j = 1 To pSayisi
+        If NormalizeTR2(UCase(stokAdi)) = pNorm(j) Then
+            bulundu = True
+            eslesme = pOrijinal(j)
+            Exit For
+        End If
+    Next j
+
+    If bulundu Then
+        If stokAdi <> eslesme Then
+            hucre.Value = eslesme
+        End If
+        Exit Sub
+    End If
+
+    ' Tam eslesme yok → DIREKT ARAMA YAP
+    Dim aramaTerimi As String
+    aramaTerimi = stokAdi
+
+ArayipGoster:
+    Dim sonucIdx() As Long
+    ReDim sonucIdx(1 To pSayisi)
+    Dim sonucSayisi As Long
+    sonucSayisi = 0
+
+    For j = 1 To pSayisi
+        If InStr(NormalizeTR2(UCase(pOrijinal(j))), NormalizeTR2(UCase(aramaTerimi))) > 0 Then
+            sonucSayisi = sonucSayisi + 1
+            sonucIdx(sonucSayisi) = j
+        End If
+    Next j
+
+    If sonucSayisi = 0 Then
+        Dim yeniArama As String
+        yeniArama = InputBox("'" & aramaTerimi & "' iceren stok bulunamadi." & Chr(10) & Chr(10) & _
+                             "Farkli bir kelime yazin veya 0 = IPTAL (hucre silinecek):", _
+                             "Stok Bulunamadi - Satir " & satir)
+        If yeniArama = "0" Or yeniArama = "" Then
+            hucre.ClearContents
+            Exit Sub
+        End If
+        aramaTerimi = yeniArama
+        GoTo ArayipGoster
+    End If
+
+    ' Sirala: Once kalan>0 (azalan), sonra kalan=0
+    Dim a As Long, b As Long, gecici As Long
+    For a = 1 To sonucSayisi - 1
+        For b = a + 1 To sonucSayisi
+            Dim degistir As Boolean
+            degistir = False
+            If pKalan(sonucIdx(a)) = 0 And pKalan(sonucIdx(b)) > 0 Then
+                degistir = True
+            ElseIf pKalan(sonucIdx(a)) > 0 And pKalan(sonucIdx(b)) > 0 Then
+                If pKalan(sonucIdx(b)) > pKalan(sonucIdx(a)) Then degistir = True
+            End If
+            If degistir Then
+                gecici = sonucIdx(a)
+                sonucIdx(a) = sonucIdx(b)
+                sonucIdx(b) = gecici
+            End If
+        Next b
+    Next a
+
+    ' En fazla 25 sonuc goster
+    Const MAX_GOSTER As Long = 25
+    Dim gosterSayisi As Long
+    gosterSayisi = sonucSayisi
+    If gosterSayisi > MAX_GOSTER Then gosterSayisi = MAX_GOSTER
+
+    Dim sonucMesaj As String
+    sonucMesaj = "Aranan: """ & aramaTerimi & """" & Chr(10)
+    If sonucSayisi > MAX_GOSTER Then
+        sonucMesaj = sonucMesaj & "(" & sonucSayisi & " sonuctan ilk " & MAX_GOSTER & " gosteriliyor)" & Chr(10)
+    End If
+    sonucMesaj = sonucMesaj & Chr(10)
+
+    Dim k As Long
+    For k = 1 To gosterSayisi
+        Dim idx As Long: idx = sonucIdx(k)
+        Dim kalanText As String
+        If pKalan(idx) = 0 Then
+            kalanText = "  [STOKTA YOK]"
+        Else
+            kalanText = "  (Kalan: " & pKalan(idx) & ")"
+        End If
+        sonucMesaj = sonucMesaj & "  " & k & ")  " & pOrijinal(idx) & kalanText & Chr(10)
+    Next k
+
+    sonucMesaj = sonucMesaj & Chr(10) & _
+                 "Secim yapin (1-" & gosterSayisi & ")" & Chr(10) & _
+                 "  0 = IPTAL (hucre silinecek)" & Chr(10) & _
+                 "  Baska kelime yazarsan tekrar arar"
+
+    Dim sonucSecim As String
+    sonucSecim = InputBox(sonucMesaj, "Stok Sec - Satir " & satir)
+
+    If sonucSecim = "0" Or sonucSecim = "" Then
+        hucre.ClearContents
+        Exit Sub
+    End If
+
+    If IsNumeric(sonucSecim) Then
+        Dim sonucNo As Long
+        sonucNo = Val(sonucSecim)
+        If sonucNo >= 1 And sonucNo <= gosterSayisi Then
+            hucre.Value = pOrijinal(sonucIdx(sonucNo))
+            Exit Sub
+        End If
+    End If
+
+    aramaTerimi = sonucSecim
+    GoTo ArayipGoster
+End Sub
+
+
+' --- Eski manuel toplu personel duzeltme (secili hucreler icin) ---
+Sub PersoneliDuzelt()
+    Const HAREKET_SAYFA As String = "STOK HAREKETLERİ"
+    Const PERSONEL_SAYFA As String = "PERSONEL LİSTESİ"
+    Const PERSONEL_AD_SUTUN As Long = 2
+    Const HAREKET_PERSONEL_SUTUN As Long = 4
+
+    Dim wsHareket As Worksheet
+    Dim wsPersonel As Worksheet
+    Dim wsYedek As Worksheet
+    Set wsHareket = Sheets(HAREKET_SAYFA)
+    Set wsPersonel = Sheets(PERSONEL_SAYFA)
+
+    On Error Resume Next
+    Set wsYedek = Sheets("YEDEK")
+    On Error GoTo 0
+    If wsYedek Is Nothing Then
+        Set wsYedek = Sheets.Add
+        wsYedek.Name = "YEDEK"
+    End If
+    wsYedek.Cells.Clear
+    wsYedek.Cells(1, 1).Value = "SATIR"
+    wsYedek.Cells(1, 2).Value = "ESKİ PERSONEL ADI"
+    wsYedek.Cells(1, 3).Value = "YENİ PERSONEL ADI"
+    Dim yedekSatir As Long
+    yedekSatir = 2
+
+    Dim pSon As Long
+    pSon = wsPersonel.Cells(wsPersonel.Rows.Count, PERSONEL_AD_SUTUN).End(xlUp).Row
+    Dim pNorm() As String
+    Dim pOrijinal() As String
+    Dim pSayisi As Long
+    ReDim pNorm(1 To pSon)
+    ReDim pOrijinal(1 To pSon)
+    pSayisi = 0
+
+    Dim i As Long
+    For i = 2 To pSon
+        Dim v As String
+        v = Trim(wsPersonel.Cells(i, PERSONEL_AD_SUTUN).Value)
+        If v <> "" Then
+            pSayisi = pSayisi + 1
+            pOrijinal(pSayisi) = v
+            pNorm(pSayisi) = NormalizeTR2(UCase(v))
+        End If
+    Next i
+
+    Dim degistirilen As Long
+    Dim atlanan As Long
+    degistirilen = 0
+    atlanan = 0
+
+    Application.EnableEvents = False
+
+    Dim hucre As Range
+    For Each hucre In Selection
+        Dim satir As Long
+        satir = hucre.Row
+        If satir < 2 Then GoTo Devam
+
+        Dim personel As String
+        personel = Trim(wsHareket.Cells(satir, HAREKET_PERSONEL_SUTUN).Value)
+        If personel = "" Then GoTo Devam
+
+        Dim bulundu As Boolean
+        bulundu = False
+        Dim eslesmeIsmi As String
+        eslesmeIsmi = ""
+        Dim j As Long
+        For j = 1 To pSayisi
+            If NormalizeTR2(UCase(personel)) = pNorm(j) Then
+                bulundu = True
+                eslesmeIsmi = pOrijinal(j)
+                Exit For
+            End If
+        Next j
+
+        If bulundu Then
+            If personel <> eslesmeIsmi Then
+                wsYedek.Cells(yedekSatir, 1).Value = satir
+                wsYedek.Cells(yedekSatir, 2).Value = personel
+                wsYedek.Cells(yedekSatir, 3).Value = eslesmeIsmi
+                yedekSatir = yedekSatir + 1
+                wsHareket.Cells(satir, HAREKET_PERSONEL_SUTUN).Value = eslesmeIsmi
+                degistirilen = degistirilen + 1
+            End If
+            GoTo Devam
+        End If
+
+        Dim puan1 As Double, puan2 As Double, puan3 As Double
+        Dim isim1 As String, isim2 As String, isim3 As String
+        puan1 = 0: puan2 = 0: puan3 = 0
+        isim1 = "": isim2 = "": isim3 = ""
+
+        For j = 1 To pSayisi
+            Dim puan As Double
+            puan = BenzerlikPuani2(NormalizeTR2(UCase(personel)), pNorm(j))
+            If puan > puan1 Then
+                puan3 = puan2: isim3 = isim2
+                puan2 = puan1: isim2 = isim1
+                puan1 = puan: isim1 = pOrijinal(j)
+            ElseIf puan > puan2 Then
+                puan3 = puan2: isim3 = isim2
+                puan2 = puan: isim2 = pOrijinal(j)
+            ElseIf puan > puan3 Then
+                puan3 = puan: isim3 = pOrijinal(j)
+            End If
+        Next j
+
+Tekrar2:
+        Dim mesaj As String
+        mesaj = "Satir " & satir & " - Duzeltilecek isim:" & Chr(10) & _
+                "  """ & personel & """" & Chr(10) & Chr(10) & _
+                "En benzer isimler:" & Chr(10) & _
+                "  1)  " & isim1 & Chr(10) & _
+                "  2)  " & isim2 & Chr(10) & _
+                "  3)  " & isim3 & Chr(10) & Chr(10) & _
+                "  0 = Atla" & Chr(10) & _
+                "  Baska bir sey yazarsan arama yapar"
+
+        Dim secim As String
+        secim = InputBox(mesaj, "Personel Duzelt - Satir " & satir)
+
+        Dim yeniIsim As String
+        yeniIsim = ""
+
+        If secim = "1" Then
+            yeniIsim = isim1
+        ElseIf secim = "2" Then
+            yeniIsim = isim2
+        ElseIf secim = "3" Then
+            yeniIsim = isim3
+        ElseIf secim = "0" Or secim = "" Then
+            atlanan = atlanan + 1
+            GoTo Devam
+        Else
+            Dim araKelime As String
+            araKelime = secim
+            Dim sonuclar() As String
+            Dim sonucSayisi As Long
+            ReDim sonuclar(1 To pSayisi)
+            sonucSayisi = 0
+            For j = 1 To pSayisi
+                If InStr(NormalizeTR2(UCase(pOrijinal(j))), NormalizeTR2(UCase(araKelime))) > 0 Then
+                    sonucSayisi = sonucSayisi + 1
+                    sonuclar(sonucSayisi) = pOrijinal(j)
+                End If
+            Next j
+            If sonucSayisi = 0 Then
+                MsgBox "'" & araKelime & "' iceren isim bulunamadi.", vbExclamation
+                GoTo Tekrar2
+            End If
+            Dim sonucMesaj As String
+            sonucMesaj = "Duzeltilecek isim: """ & personel & """" & Chr(10) & Chr(10) & _
+                         "'" & araKelime & "' iceren isimler:" & Chr(10) & Chr(10)
+            Dim k As Long
+            For k = 1 To sonucSayisi
+                sonucMesaj = sonucMesaj & "  " & k & ")  " & sonuclar(k) & Chr(10)
+            Next k
+            sonucMesaj = sonucMesaj & Chr(10) & "Secim yapin (1-" & sonucSayisi & ") veya 0 = Geri don"
+            Dim sonucSecim As String
+            sonucSecim = InputBox(sonucMesaj, "Arama Sonuclari")
+            If sonucSecim = "0" Or sonucSecim = "" Then
+                GoTo Tekrar2
+            End If
+            Dim sonucNo As Long
+            sonucNo = Val(sonucSecim)
+            If sonucNo >= 1 And sonucNo <= sonucSayisi Then
+                yeniIsim = sonuclar(sonucNo)
+            Else
+                GoTo Tekrar2
+            End If
+        End If
+
+        If yeniIsim <> "" Then
+            wsYedek.Cells(yedekSatir, 1).Value = satir
+            wsYedek.Cells(yedekSatir, 2).Value = personel
+            wsYedek.Cells(yedekSatir, 3).Value = yeniIsim
+            yedekSatir = yedekSatir + 1
+            wsHareket.Cells(satir, HAREKET_PERSONEL_SUTUN).Value = yeniIsim
+            degistirilen = degistirilen + 1
+        End If
+Devam:
+    Next hucre
+
+    Application.EnableEvents = True
+
+    MsgBox degistirilen & " satir duzeltildi, " & atlanan & " satir atlandi." & Chr(10) & _
+           "Geri almak icin 'GeriAl' makrosunu calistirin.", vbInformation, "Tamamlandi"
+End Sub
+
+
+' --- Personel degisikliklerini geri alma ---
+Sub GeriAl()
+    Const HAREKET_SAYFA As String = "STOK HAREKETLERİ"
+    Const HAREKET_PERSONEL_SUTUN As Long = 4
+
+    Dim wsHareket As Worksheet
+    Dim wsYedek As Worksheet
+    On Error Resume Next
+    Set wsYedek = Sheets("YEDEK")
+    On Error GoTo 0
+
+    If wsYedek Is Nothing Then
+        MsgBox "Yedek bulunamadi!", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsHareket = Sheets(HAREKET_SAYFA)
+
+    Application.EnableEvents = False
+
+    Dim i As Long
+    Dim geriAlinan As Long
+    geriAlinan = 0
+    For i = 2 To wsYedek.Cells(wsYedek.Rows.Count, 1).End(xlUp).Row
+        Dim satir As Long
+        satir = wsYedek.Cells(i, 1).Value
+        If satir > 0 Then
+            wsHareket.Cells(satir, HAREKET_PERSONEL_SUTUN).Value = wsYedek.Cells(i, 2).Value
+            geriAlinan = geriAlinan + 1
+        End If
+    Next i
+
+    wsYedek.Cells.Clear
+
+    Application.EnableEvents = True
+
+    MsgBox geriAlinan & " satir geri alindi.", vbInformation, "Tamam"
+End Sub
+
+
+' --- Yardimci: Turkce karakterleri normallestirir ---
+Function NormalizeTR2(s As String) As String
+    Dim r As String
+    r = s
+    r = Replace(r, "Ç", "C"): r = Replace(r, "ç", "c")
+    r = Replace(r, "Ş", "S"): r = Replace(r, "ş", "s")
+    r = Replace(r, "Ğ", "G"): r = Replace(r, "ğ", "g")
+    r = Replace(r, "Ü", "U"): r = Replace(r, "ü", "u")
+    r = Replace(r, "Ö", "O"): r = Replace(r, "ö", "o")
+    r = Replace(r, "İ", "I"): r = Replace(r, "ı", "i")
+    NormalizeTR2 = r
+End Function
+
+
+' --- Yardimci: Benzerlik puani ---
+Function BenzerlikPuani2(s1 As String, s2 As String) As Double
+    Dim uzun As Integer
+    uzun = IIf(Len(s1) > Len(s2), Len(s1), Len(s2))
+    If uzun = 0 Then BenzerlikPuani2 = 1: Exit Function
+
+    Dim eslesme As Integer
+    Dim s2k As String
+    s2k = s2
+    Dim k As Integer
+    For k = 1 To Len(s1)
+        Dim harf As String
+        harf = Mid(s1, k, 1)
+        Dim pos As Integer
+        pos = InStr(s2k, harf)
+        If pos > 0 Then
+            eslesme = eslesme + 1
+            s2k = Left(s2k, pos - 1) & Right(s2k, Len(s2k) - pos)
+        End If
+    Next k
+    BenzerlikPuani2 = eslesme / uzun
+End Function

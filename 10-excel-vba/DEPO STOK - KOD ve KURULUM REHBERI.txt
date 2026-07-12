@@ -1,0 +1,1570 @@
+===================================================================
+  2026 DEPO STOK  -  MAKRO / KOD ve KURULUM REHBERI (TAM)
+  Hazirlanma: 29.05.2026
+===================================================================
+
+>>> EN KOLAY KULLANIM (BASKA PC):
+    Bu ".xlsm" dosyasini oldugu gibi kopyala. Butun kodlar, butonlar
+    ve ModKutu sekli dosyanin ICINDE kayitli. Diger PC'de acinca
+    "Icerigi Etkinlestir" de, biter. Asagidakiler SIFIRDAN kurmak
+    veya yedek/referans icindir.
+
+-------------------------------------------------------------------
+ NE YAPTIK (OZET)
+-------------------------------------------------------------------
+1) GuvenliKutu: Yanlis isim/stok yazinca acilan secim penceresine,
+   onceden hizli yazdigin tuslarin KACMAMASI icin klavye tamponunu
+   pencere acilmadan temizler. (Artik pencereyi elle silmiyorsun.)
+2) Hiz: Personel ve stok kontrolu, sayfayi "hucre hucre" degil
+   "tek seferde diziye" okur + gereksiz tekrar islemleri kaldirildi.
+3) MANUEL HESAP: KALAN sutunu agir formullerle hesaplaniyor
+   (STOK GUNCEL'de ~2098 satir SUMIFS + STOK GIRIS CIKIS'ta ~24.000
+   satir VLOOKUP). Bu yuzden her giriste uzun bekleme oluyordu.
+   Cozum: dosya OTOMATIK acilir (herkes icin normal); SEN giris
+   yapacaginda butonla MANUEL'e alirsin -> giris aninda olur.
+   KALAN'i gormek icin F9 / GUNCELLE.
+4) ModKutu: Hangi moddasin gosteren renkli kutu (manuel=turuncu,
+   otomatik=yesil).
+5) STOK GUNCEL sekmesine tiklayinca o sayfa otomatik guncellenir.
+
+-------------------------------------------------------------------
+ NEREYE NE GIDIYOR  (VBA editoru: Alt + F11)
+-------------------------------------------------------------------
+ * Yeni bir Modul ekle (Insert > Module) ............ BOLUM 1
+ * Modul3 (ana makrolar) ............................ BOLUM 2
+ * ThisWorkbook ..................................... BOLUM 3
+ * "STOK GIRIS CIKIS" sayfa kodu .................... BOLUM 4
+ * "STOK GUNCEL" sayfa kodu ......................... BOLUM 5
+ * Sayfaya elle: 2 buton + ModKutu sekli ............ BOLUM 6
+
+ NOT: Pencerelerdeki secim kutusu artik GuvenliKutu ile aciliyor.
+      Bu yuzden Modul3'teki tum "InputBox(" cagrilari "GuvenliKutu("
+      olarak gecer (asagidaki kodlarda hazir oyle yazili).
+
+===================================================================
+ BOLUM 1  -  YENI MODUL (klavye tamponu + GuvenliKutu)
+ Insert > Module yap, asagiyi yapistir.
+===================================================================
+
+#If VBA7 Then
+    Private Type tKlavyeMsg
+        hwnd As LongPtr
+        message As Long
+        wParam As LongPtr
+        lParam As LongPtr
+        zaman As Long
+        ptX As Long
+        ptY As Long
+    End Type
+    Private Declare PtrSafe Function PeekMessageA Lib "user32" _
+        (ByRef lpMsg As tKlavyeMsg, ByVal hwnd As LongPtr, _
+         ByVal wMsgFilterMin As Long, ByVal wMsgFilterMax As Long, _
+         ByVal wRemoveMsg As Long) As Long
+#Else
+    Private Type tKlavyeMsg
+        hwnd As Long
+        message As Long
+        wParam As Long
+        lParam As Long
+        zaman As Long
+        ptX As Long
+        ptY As Long
+    End Type
+    Private Declare Function PeekMessageA Lib "user32" _
+        (ByRef lpMsg As tKlavyeMsg, ByVal hwnd As Long, _
+         ByVal wMsgFilterMin As Long, ByVal wMsgFilterMax As Long, _
+         ByVal wRemoveMsg As Long) As Long
+#End If
+
+#If VBA7 Then
+    Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+#Else
+    Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+#End If
+
+' >>> AYAR: Secim/arama penceresi acilmadan once kac MILISANIYE beklenecek?
+'     (Bu sirada hizli yazdigin tuslar yutulur -> pencere BOS acilir.)
+'     Fazla gelirse dusur (orn. 300), az gelirse artir (orn. 700).
+Public Const BEKLE_MS As Long = 500
+
+' Onceden yazilmis (bekleyen) klavye tuslarini kuyruktan siler
+Public Sub KlavyeyiBosalt()
+    Dim m As tKlavyeMsg
+    Do While PeekMessageA(m, 0, &H100, &H108, &H1) <> 0
+    Loop
+End Sub
+
+' Once klavye tamponunu temizler, sonra normal pencereyi acar
+Public Function GuvenliKutu(Prompt As String, _
+                            Optional Title As String = "", _
+                            Optional Default As String = "") As String
+    Sleep BEKLE_MS      ' bu sirada yazilan tuslar pencereye DEGIL kuyruga gider
+    KlavyeyiBosalt      ' kuyruktaki tuslari at
+    GuvenliKutu = VBA.Interaction.InputBox(Prompt, Title, Default)
+End Function
+
+===================================================================
+ BOLUM 2  -  MODUL3  (tum ana makrolar)
+ Modul3'un icini tamamen sil, asagiyi yapistir.
+===================================================================
+
+' --- Otomatik personel kontrolu ---
+Sub OtomatikPersonelKontrol(hucre As Range)
+    Dim wsStok As Worksheet
+    Dim wsPersonel As Worksheet
+    Dim wsYedek As Worksheet
+    Set wsStok = Sheets("STOK GİRİŞ ÇIKIŞ")
+    Set wsPersonel = Sheets("PERSONEL LİSTE")
+
+    On Error Resume Next
+    Set wsYedek = Sheets("YEDEK")
+    On Error GoTo 0
+    If wsYedek Is Nothing Then
+        Set wsYedek = Sheets.Add(After:=Sheets(Sheets.Count))
+        wsYedek.Name = "YEDEK"
+        wsYedek.Cells(1, 1).Value = "SATIR"
+        wsYedek.Cells(1, 2).Value = "ESKİ PERSONEL ADI"
+        wsYedek.Cells(1, 3).Value = "YENİ PERSONEL ADI"
+    End If
+
+    Dim yedekSatir As Long
+    yedekSatir = wsYedek.Cells(wsYedek.Rows.Count, 1).End(xlUp).Row + 1
+    If yedekSatir < 2 Then yedekSatir = 2
+
+    Dim pSon As Long
+    pSon = wsPersonel.Cells(wsPersonel.Rows.Count, 3).End(xlUp).Row
+    If pSon < 2 Then Exit Sub
+
+    ' HIZLANDIRMA 1: tum isimleri tek seferde diziye oku
+    Dim arr As Variant
+    arr = wsPersonel.Range(wsPersonel.Cells(2, 1), wsPersonel.Cells(pSon, 3)).Value
+
+    Dim satirSayisi As Long
+    satirSayisi = pSon - 1
+
+    Dim pNorm() As String, pOrijinal() As String
+    ReDim pNorm(1 To satirSayisi)
+    ReDim pOrijinal(1 To satirSayisi)
+    Dim pSayisi As Long
+    pSayisi = 0
+
+    Dim i As Long
+    For i = 1 To satirSayisi
+        Dim v As String
+        v = Trim(CStr(arr(i, 3)))
+        If v <> "" Then
+            pSayisi = pSayisi + 1
+            pOrijinal(pSayisi) = v
+            pNorm(pSayisi) = NormalizeTR2(UCase(v))
+        End If
+    Next i
+    If pSayisi = 0 Then Exit Sub
+
+    Dim satir As Long
+    satir = hucre.Row
+
+    Dim personel As String
+    personel = Trim(CStr(hucre.Value))
+    If personel = "" Then Exit Sub
+
+    ' HIZLANDIRMA 2: bir kez normalize et
+    Dim personelNorm As String
+    personelNorm = NormalizeTR2(UCase(personel))
+
+    Dim bulundu As Boolean: bulundu = False
+    Dim eslesmeIsmi As String: eslesmeIsmi = ""
+    Dim j As Long
+    For j = 1 To pSayisi
+        If personelNorm = pNorm(j) Then
+            bulundu = True
+            eslesmeIsmi = pOrijinal(j)
+            Exit For
+        End If
+    Next j
+
+    If bulundu Then
+        If personel <> eslesmeIsmi Then
+            wsYedek.Cells(yedekSatir, 1).Value = satir
+            wsYedek.Cells(yedekSatir, 2).Value = personel
+            wsYedek.Cells(yedekSatir, 3).Value = eslesmeIsmi
+            hucre.Value = eslesmeIsmi
+        End If
+        Exit Sub
+    End If
+
+    Dim puan1 As Double, puan2 As Double, puan3 As Double
+    Dim isim1 As String, isim2 As String, isim3 As String
+    puan1 = 0: puan2 = 0: puan3 = 0
+    isim1 = "": isim2 = "": isim3 = ""
+
+    For j = 1 To pSayisi
+        Dim puan As Double
+        puan = BenzerlikPuani2(personelNorm, pNorm(j))
+        If puan > puan1 Then
+            puan3 = puan2: isim3 = isim2
+            puan2 = puan1: isim2 = isim1
+            puan1 = puan: isim1 = pOrijinal(j)
+        ElseIf puan > puan2 Then
+            puan3 = puan2: isim3 = isim2
+            puan2 = puan: isim2 = pOrijinal(j)
+        ElseIf puan > puan3 Then
+            puan3 = puan: isim3 = pOrijinal(j)
+        End If
+    Next j
+
+Tekrar:
+    Dim mesaj As String
+    mesaj = "Satir " & satir & " - YANLIS YAZILAN ISIM:" & Chr(10) & _
+            "  """ & personel & """" & Chr(10) & Chr(10) & _
+            "En benzer isimler:" & Chr(10) & _
+            "  1)  " & isim1 & Chr(10) & _
+            "  2)  " & isim2 & Chr(10) & _
+            "  3)  " & isim3 & Chr(10) & Chr(10) & _
+            "  0 = IPTAL (yanlis isim silinecek)" & Chr(10) & _
+            "  Baska bir sey yazarsan arama yapar"
+
+    Dim secim As String
+    secim = GuvenliKutu(mesaj, "Personel Duzelt - Satir " & satir)
+
+    Dim yeniIsim As String: yeniIsim = ""
+
+    If secim = "1" Then
+        yeniIsim = isim1
+    ElseIf secim = "2" Then
+        yeniIsim = isim2
+    ElseIf secim = "3" Then
+        yeniIsim = isim3
+    ElseIf secim = "0" Or secim = "" Then
+        hucre.ClearContents
+        Exit Sub
+    Else
+        Dim araKelime As String
+        araKelime = secim
+        ' HIZLANDIRMA 3 ve 4: arama terimini bir kez normalize et, pNorm(j) kullan
+        Dim araNorm As String
+        araNorm = NormalizeTR2(UCase(araKelime))
+        Dim sonuclar() As String
+        Dim sonucSayisi As Long
+        ReDim sonuclar(1 To pSayisi)
+        sonucSayisi = 0
+        For j = 1 To pSayisi
+            If InStr(pNorm(j), araNorm) > 0 Then
+                sonucSayisi = sonucSayisi + 1
+                sonuclar(sonucSayisi) = pOrijinal(j)
+            End If
+        Next j
+        If sonucSayisi = 0 Then
+            MsgBox "'" & araKelime & "' iceren isim bulunamadi.", vbExclamation
+            GoTo Tekrar
+        End If
+        Dim sonucMesaj As String
+        sonucMesaj = "Duzeltilecek isim: """ & personel & """" & Chr(10) & Chr(10) & _
+                     "'" & araKelime & "' iceren isimler:" & Chr(10) & Chr(10)
+        Dim k As Long
+        For k = 1 To sonucSayisi
+            sonucMesaj = sonucMesaj & "  " & k & ")  " & sonuclar(k) & Chr(10)
+        Next k
+        sonucMesaj = sonucMesaj & Chr(10) & "Secim yapin (1-" & sonucSayisi & ") veya 0 = Geri don"
+        Dim sonucSecim As String
+        sonucSecim = GuvenliKutu(sonucMesaj, "Arama Sonuclari")
+        If sonucSecim = "0" Or sonucSecim = "" Then
+            GoTo Tekrar
+        End If
+        Dim sonucNo As Long
+        sonucNo = Val(sonucSecim)
+        If sonucNo >= 1 And sonucNo <= sonucSayisi Then
+            yeniIsim = sonuclar(sonucNo)
+        Else
+            GoTo Tekrar
+        End If
+    End If
+
+    If yeniIsim <> "" Then
+        wsYedek.Cells(yedekSatir, 1).Value = satir
+        wsYedek.Cells(yedekSatir, 2).Value = personel
+        wsYedek.Cells(yedekSatir, 3).Value = yeniIsim
+        hucre.Value = yeniIsim
+    End If
+End Sub
+
+
+' --- Otomatik stok kontrolu - HIZLI + MANUEL HESAP UYUMLU ---
+Sub OtomatikStokKontrol(hucre As Range)
+    Const STOK_GUNCEL_SAYFA As String = "STOK GÜNCEL"
+    Const STOK_AD_SUTUN As Long = 1      ' A sutunu
+    Const KALAN_SUTUN As Long = 4        ' D sutunu (KALAN MIKTAR)
+    Const TAZELE_KALAN As Boolean = False ' False = arama penceresi ANINDA acilir (onerilen). True = her aramada STOK GUNCEL bastan hesaplanir -> yavas. NORMAL modda KALAN zaten gunceldir.
+
+    Dim wsStokGuncel As Worksheet
+    On Error Resume Next
+    Set wsStokGuncel = Sheets(STOK_GUNCEL_SAYFA)
+    On Error GoTo 0
+    If wsStokGuncel Is Nothing Then Exit Sub
+
+    Dim pSon As Long
+    pSon = wsStokGuncel.Cells(wsStokGuncel.Rows.Count, STOK_AD_SUTUN).End(xlUp).Row
+    If pSon < 2 Then Exit Sub
+
+    Dim arr As Variant
+    arr = wsStokGuncel.Range(wsStokGuncel.Cells(2, STOK_AD_SUTUN), _
+                             wsStokGuncel.Cells(pSon, KALAN_SUTUN)).Value
+
+    Dim satirSayisi As Long
+    satirSayisi = pSon - 1
+
+    Dim pNorm() As String, pOrijinal() As String, pKalan() As Double, pRowIdx() As Long
+    ReDim pNorm(1 To satirSayisi)
+    ReDim pOrijinal(1 To satirSayisi)
+    ReDim pKalan(1 To satirSayisi)
+    ReDim pRowIdx(1 To satirSayisi)
+    Dim pSayisi As Long
+    pSayisi = 0
+
+    Dim i As Long
+    For i = 1 To satirSayisi
+        Dim v As String
+        v = Trim(CStr(arr(i, STOK_AD_SUTUN)))
+        If v <> "" Then
+            pSayisi = pSayisi + 1
+            pOrijinal(pSayisi) = v
+            pNorm(pSayisi) = NormalizeTR2(UCase(v))
+            pRowIdx(pSayisi) = i
+            Dim kalanDeger As Variant
+            kalanDeger = arr(i, KALAN_SUTUN)
+            If IsNumeric(kalanDeger) Then
+                pKalan(pSayisi) = CDbl(kalanDeger)
+            Else
+                pKalan(pSayisi) = 0
+            End If
+        End If
+    Next i
+    If pSayisi = 0 Then Exit Sub
+
+    Dim satir As Long
+    satir = hucre.Row
+
+    Dim stokAdi As String
+    stokAdi = Trim(CStr(hucre.Value))
+    If stokAdi = "" Then Exit Sub
+
+    Dim stokAdiNorm As String
+    stokAdiNorm = NormalizeTR2(UCase(stokAdi))
+
+    Dim bulundu As Boolean: bulundu = False
+    Dim eslesme As String: eslesme = ""
+    Dim j As Long
+    For j = 1 To pSayisi
+        If stokAdiNorm = pNorm(j) Then
+            bulundu = True
+            eslesme = pOrijinal(j)
+            Exit For
+        End If
+    Next j
+
+    If bulundu Then
+        If stokAdi <> eslesme Then
+            hucre.Value = eslesme
+        End If
+        Exit Sub        ' tam eslesme -> aninda cik, hesaplama yok
+    End If
+
+    ' Tam eslesme YOK: arama penceresi gosterilecek -> KALAN'i tazele
+    If TAZELE_KALAN Then
+        wsStokGuncel.Calculate
+        Dim arr2 As Variant
+        arr2 = wsStokGuncel.Range(wsStokGuncel.Cells(2, STOK_AD_SUTUN), _
+                                  wsStokGuncel.Cells(pSon, KALAN_SUTUN)).Value
+        Dim t As Long
+        For t = 1 To pSayisi
+            Dim kd As Variant
+            kd = arr2(pRowIdx(t), KALAN_SUTUN)
+            If IsNumeric(kd) Then
+                pKalan(t) = CDbl(kd)
+            Else
+                pKalan(t) = 0
+            End If
+        Next t
+    End If
+
+    Dim aramaTerimi As String
+    aramaTerimi = stokAdi
+
+ArayipGoster:
+    Dim aramaNorm As String
+    aramaNorm = NormalizeTR2(UCase(aramaTerimi))
+
+    Dim sonucIdx() As Long
+    ReDim sonucIdx(1 To pSayisi)
+    Dim sonucSayisi As Long
+    sonucSayisi = 0
+
+    For j = 1 To pSayisi
+        If InStr(pNorm(j), aramaNorm) > 0 Then
+            sonucSayisi = sonucSayisi + 1
+            sonucIdx(sonucSayisi) = j
+        End If
+    Next j
+
+    If sonucSayisi = 0 Then
+        Dim yeniArama As String
+        yeniArama = GuvenliKutu("'" & aramaTerimi & "' iceren stok bulunamadi." & Chr(10) & Chr(10) & _
+                             "Farkli bir kelime yazin veya 0 = IPTAL (hucre silinecek):", _
+                             "Stok Bulunamadi - Satir " & satir)
+        If yeniArama = "0" Or yeniArama = "" Then
+            hucre.ClearContents
+            Exit Sub
+        End If
+        aramaTerimi = yeniArama
+        GoTo ArayipGoster
+    End If
+
+    Dim a As Long, b As Long, gecici As Long
+    For a = 1 To sonucSayisi - 1
+        For b = a + 1 To sonucSayisi
+            Dim degistir As Boolean
+            degistir = False
+            If pKalan(sonucIdx(a)) = 0 And pKalan(sonucIdx(b)) > 0 Then
+                degistir = True
+            ElseIf pKalan(sonucIdx(a)) > 0 And pKalan(sonucIdx(b)) > 0 Then
+                If pKalan(sonucIdx(b)) > pKalan(sonucIdx(a)) Then degistir = True
+            End If
+            If degistir Then
+                gecici = sonucIdx(a)
+                sonucIdx(a) = sonucIdx(b)
+                sonucIdx(b) = gecici
+            End If
+        Next b
+    Next a
+
+    Const MAX_GOSTER As Long = 25
+    Dim gosterSayisi As Long
+    gosterSayisi = sonucSayisi
+    If gosterSayisi > MAX_GOSTER Then gosterSayisi = MAX_GOSTER
+
+    Dim sonucMesaj As String
+    sonucMesaj = "Aranan: """ & aramaTerimi & """" & Chr(10)
+    If sonucSayisi > MAX_GOSTER Then
+        sonucMesaj = sonucMesaj & "(" & sonucSayisi & " sonuctan ilk " & MAX_GOSTER & " gosteriliyor)" & Chr(10)
+    End If
+    sonucMesaj = sonucMesaj & Chr(10)
+
+    Dim k As Long
+    For k = 1 To gosterSayisi
+        Dim idx As Long: idx = sonucIdx(k)
+        Dim kalanText As String
+        If pKalan(idx) = 0 Then
+            kalanText = "  [STOKTA YOK]"
+        Else
+            kalanText = "  (Kalan: " & pKalan(idx) & ")"
+        End If
+        sonucMesaj = sonucMesaj & "  " & k & ")  " & pOrijinal(idx) & kalanText & Chr(10)
+    Next k
+
+    sonucMesaj = sonucMesaj & Chr(10) & _
+                 "Secim yapin (1-" & gosterSayisi & ")" & Chr(10) & _
+                 "  0 = IPTAL (hucre silinecek)" & Chr(10) & _
+                 "  Baska kelime yazarsan tekrar arar"
+
+    Dim sonucSecim As String
+    sonucSecim = GuvenliKutu(sonucMesaj, "Stok Sec - Satir " & satir)
+
+    If sonucSecim = "0" Or sonucSecim = "" Then
+        hucre.ClearContents
+        Exit Sub
+    End If
+
+    If IsNumeric(sonucSecim) Then
+        Dim sonucNo As Long
+        sonucNo = Val(sonucSecim)
+        If sonucNo >= 1 And sonucNo <= gosterSayisi Then
+            hucre.Value = pOrijinal(sonucIdx(sonucNo))
+            Exit Sub
+        End If
+    End If
+
+    aramaTerimi = sonucSecim
+    GoTo ArayipGoster
+End Sub
+
+
+' --- Eski manuel toplu personel duzeltme ---
+Sub PersoneliDuzelt()
+    Dim wsStok As Worksheet
+    Dim wsPersonel As Worksheet
+    Dim wsYedek As Worksheet
+    Set wsStok = Sheets("STOK GİRİŞ ÇIKIŞ")
+    Set wsPersonel = Sheets("PERSONEL LİSTE")
+
+    On Error Resume Next
+    Set wsYedek = Sheets("YEDEK")
+    On Error GoTo 0
+    If wsYedek Is Nothing Then
+        Set wsYedek = Sheets.Add
+        wsYedek.Name = "YEDEK"
+    End If
+    wsYedek.Cells.Clear
+    wsYedek.Cells(1, 1).Value = "SATIR"
+    wsYedek.Cells(1, 2).Value = "ESKİ PERSONEL ADI"
+    wsYedek.Cells(1, 3).Value = "YENİ PERSONEL ADI"
+    Dim yedekSatir As Long
+    yedekSatir = 2
+
+    Dim pSon As Long
+    pSon = wsPersonel.Cells(wsPersonel.Rows.Count, 3).End(xlUp).Row
+    Dim pNorm() As String
+    Dim pOrijinal() As String
+    Dim pSayisi As Long
+    ReDim pNorm(1 To pSon)
+    ReDim pOrijinal(1 To pSon)
+    pSayisi = 0
+
+    Dim i As Long
+    For i = 2 To pSon
+        Dim v As String
+        v = Trim(wsPersonel.Cells(i, 3).Value)
+        If v <> "" Then
+            pSayisi = pSayisi + 1
+            pOrijinal(pSayisi) = v
+            pNorm(pSayisi) = NormalizeTR2(UCase(v))
+        End If
+    Next i
+
+    Dim degistirilen As Long
+    Dim atlanan As Long
+    degistirilen = 0
+    atlanan = 0
+
+    Application.EnableEvents = False
+
+    Dim hucre As Range
+    For Each hucre In Selection
+        Dim satir As Long
+        satir = hucre.Row
+        If satir < 2 Then GoTo Devam
+
+        Dim personel As String
+        personel = Trim(wsStok.Cells(satir, 2).Value)
+        If personel = "" Then GoTo Devam
+
+        Dim bulundu As Boolean
+        bulundu = False
+        Dim eslesmeIsmi As String
+        eslesmeIsmi = ""
+        Dim j As Long
+        For j = 1 To pSayisi
+            If NormalizeTR2(UCase(personel)) = pNorm(j) Then
+                bulundu = True
+                eslesmeIsmi = pOrijinal(j)
+                Exit For
+            End If
+        Next j
+
+        If bulundu Then
+            If personel <> eslesmeIsmi Then
+                wsYedek.Cells(yedekSatir, 1).Value = satir
+                wsYedek.Cells(yedekSatir, 2).Value = personel
+                wsYedek.Cells(yedekSatir, 3).Value = eslesmeIsmi
+                yedekSatir = yedekSatir + 1
+                wsStok.Cells(satir, 2).Value = eslesmeIsmi
+                degistirilen = degistirilen + 1
+            End If
+            GoTo Devam
+        End If
+
+        Dim puan1 As Double, puan2 As Double, puan3 As Double
+        Dim isim1 As String, isim2 As String, isim3 As String
+        puan1 = 0: puan2 = 0: puan3 = 0
+        isim1 = "": isim2 = "": isim3 = ""
+
+        For j = 1 To pSayisi
+            Dim puan As Double
+            puan = BenzerlikPuani2(NormalizeTR2(UCase(personel)), pNorm(j))
+            If puan > puan1 Then
+                puan3 = puan2: isim3 = isim2
+                puan2 = puan1: isim2 = isim1
+                puan1 = puan: isim1 = pOrijinal(j)
+            ElseIf puan > puan2 Then
+                puan3 = puan2: isim3 = isim2
+                puan2 = puan: isim2 = pOrijinal(j)
+            ElseIf puan > puan3 Then
+                puan3 = puan: isim3 = pOrijinal(j)
+            End If
+        Next j
+
+Tekrar2:
+        Dim mesaj As String
+        mesaj = "Satir " & satir & " - Duzeltilecek isim:" & Chr(10) & _
+                "  """ & personel & """" & Chr(10) & Chr(10) & _
+                "En benzer isimler:" & Chr(10) & _
+                "  1)  " & isim1 & Chr(10) & _
+                "  2)  " & isim2 & Chr(10) & _
+                "  3)  " & isim3 & Chr(10) & Chr(10) & _
+                "  0 = Atla" & Chr(10) & _
+                "  Baska bir sey yazarsan arama yapar"
+
+        Dim secim As String
+        secim = GuvenliKutu(mesaj, "Personel Duzelt - Satir " & satir)
+
+        Dim yeniIsim As String
+        yeniIsim = ""
+
+        If secim = "1" Then
+            yeniIsim = isim1
+        ElseIf secim = "2" Then
+            yeniIsim = isim2
+        ElseIf secim = "3" Then
+            yeniIsim = isim3
+        ElseIf secim = "0" Or secim = "" Then
+            atlanan = atlanan + 1
+            GoTo Devam
+        Else
+            Dim araKelime As String
+            araKelime = secim
+            Dim sonuclar() As String
+            Dim sonucSayisi As Long
+            ReDim sonuclar(1 To pSayisi)
+            sonucSayisi = 0
+            For j = 1 To pSayisi
+                If InStr(NormalizeTR2(UCase(pOrijinal(j))), NormalizeTR2(UCase(araKelime))) > 0 Then
+                    sonucSayisi = sonucSayisi + 1
+                    sonuclar(sonucSayisi) = pOrijinal(j)
+                End If
+            Next j
+            If sonucSayisi = 0 Then
+                MsgBox "'" & araKelime & "' iceren isim bulunamadi.", vbExclamation
+                GoTo Tekrar2
+            End If
+            Dim sonucMesaj As String
+            sonucMesaj = "Duzeltilecek isim: """ & personel & """" & Chr(10) & Chr(10) & _
+                         "'" & araKelime & "' iceren isimler:" & Chr(10) & Chr(10)
+            Dim k As Long
+            For k = 1 To sonucSayisi
+                sonucMesaj = sonucMesaj & "  " & k & ")  " & sonuclar(k) & Chr(10)
+            Next k
+            sonucMesaj = sonucMesaj & Chr(10) & "Secim yapin (1-" & sonucSayisi & ") veya 0 = Geri don"
+            Dim sonucSecim As String
+            sonucSecim = GuvenliKutu(sonucMesaj, "Arama Sonuclari")
+            If sonucSecim = "0" Or sonucSecim = "" Then
+                GoTo Tekrar2
+            End If
+            Dim sonucNo As Long
+            sonucNo = Val(sonucSecim)
+            If sonucNo >= 1 And sonucNo <= sonucSayisi Then
+                yeniIsim = sonuclar(sonucNo)
+            Else
+                GoTo Tekrar2
+            End If
+        End If
+
+        If yeniIsim <> "" Then
+            wsYedek.Cells(yedekSatir, 1).Value = satir
+            wsYedek.Cells(yedekSatir, 2).Value = personel
+            wsYedek.Cells(yedekSatir, 3).Value = yeniIsim
+            yedekSatir = yedekSatir + 1
+            wsStok.Cells(satir, 2).Value = yeniIsim
+            degistirilen = degistirilen + 1
+        End If
+Devam:
+    Next hucre
+
+    Application.EnableEvents = True
+
+    MsgBox degistirilen & " satir duzeltildi, " & atlanan & " satir atlandi." & Chr(10) & _
+           "Geri almak icin 'GeriAl' makrosunu calistirin.", vbInformation, "Tamamlandi"
+End Sub
+
+
+' --- Personel degisikliklerini geri alma ---
+Sub GeriAl()
+    Dim wsStok As Worksheet
+    Dim wsYedek As Worksheet
+    On Error Resume Next
+    Set wsYedek = Sheets("YEDEK")
+    On Error GoTo 0
+
+    If wsYedek Is Nothing Then
+        MsgBox "Yedek bulunamadi!", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsStok = Sheets("STOK GİRİŞ ÇIKIŞ")
+
+    Application.EnableEvents = False
+
+    Dim i As Long
+    Dim geriAlinan As Long
+    geriAlinan = 0
+    For i = 2 To wsYedek.Cells(wsYedek.Rows.Count, 1).End(xlUp).Row
+        Dim satir As Long
+        satir = wsYedek.Cells(i, 1).Value
+        If satir > 0 Then
+            wsStok.Cells(satir, 2).Value = wsYedek.Cells(i, 2).Value
+            geriAlinan = geriAlinan + 1
+        End If
+    Next i
+
+    wsYedek.Cells.Clear
+
+    Application.EnableEvents = True
+
+    MsgBox geriAlinan & " satir geri alindi.", vbInformation, "Tamam"
+End Sub
+
+
+' --- Yardimci: Turkce karakterleri normallestirir ---
+Function NormalizeTR2(s As String) As String
+    Dim r As String
+    r = s
+    r = Replace(r, "Ç", "C"): r = Replace(r, "ç", "c")
+    r = Replace(r, "Ş", "S"): r = Replace(r, "ş", "s")
+    r = Replace(r, "Ğ", "G"): r = Replace(r, "ğ", "g")
+    r = Replace(r, "Ü", "U"): r = Replace(r, "ü", "u")
+    r = Replace(r, "Ö", "O"): r = Replace(r, "ö", "o")
+    r = Replace(r, "İ", "I"): r = Replace(r, "ı", "i")
+    NormalizeTR2 = r
+End Function
+
+
+' --- Yardimci: Benzerlik puani ---
+Function BenzerlikPuani2(s1 As String, s2 As String) As Double
+    Dim uzun As Integer
+    uzun = IIf(Len(s1) > Len(s2), Len(s1), Len(s2))
+    If uzun = 0 Then BenzerlikPuani2 = 1: Exit Function
+
+    Dim eslesme As Integer
+    Dim s2k As String
+    s2k = s2
+    Dim k As Integer
+    For k = 1 To Len(s1)
+        Dim harf As String
+        harf = Mid(s1, k, 1)
+        Dim pos As Integer
+        pos = InStr(s2k, harf)
+        If pos > 0 Then
+            eslesme = eslesme + 1
+            s2k = Left(s2k, pos - 1) & Right(s2k, Len(s2k) - pos)
+        End If
+    Next k
+    BenzerlikPuani2 = eslesme / uzun
+End Function
+
+
+' ====== MANUEL / OTOMATIK HESAP + GOSTERGE ======
+
+' KALAN'i elle guncelle (butona ata ya da F9'a bas)
+Public Sub GuncelleKalan()
+    Application.Calculate
+End Sub
+
+' HIZLI GIRIS modu (manuel hesap)
+Public Sub ManuelHesapAc()
+    Application.Calculation = xlCalculationManual
+    ModuGoster
+End Sub
+
+' Normal mod (otomatik hesap)
+Public Sub OtomatikHesapAc()
+    Application.Calculation = xlCalculationAutomatic
+    Application.Calculate
+    ModuGoster
+End Sub
+
+' ModKutu seklini moda gore renklendirir
+Public Sub ModuGoster()
+    On Error Resume Next
+    With Sheets("STOK GİRİŞ ÇIKIŞ").Shapes("ModKutu")
+        If Application.Calculation = xlCalculationManual Then
+            .TextFrame2.TextRange.Text = "MANUEL - HIZLI GIRIS"
+            .Fill.ForeColor.RGB = RGB(255, 192, 0)
+            .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = vbBlack
+        Else
+            .TextFrame2.TextRange.Text = "OTOMATIK"
+            .Fill.ForeColor.RGB = RGB(112, 173, 71)
+            .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = vbWhite
+        End If
+        .TextFrame2.TextRange.Font.Bold = msoTrue
+    End With
+    On Error GoTo 0
+End Sub
+
+===================================================================
+ BOLUM 3  -  ThisWorkbook
+ Soldaki "Microsoft Excel Objects > ThisWorkbook"a cift tikla.
+ Acilista OTOMATIK olur (herkes icin); giris yaparken butonla
+ MANUEL'e alirsin.
+===================================================================
+
+Private Sub Workbook_Open()
+    Application.Calculation = xlCalculationAutomatic
+    Application.CalculateBeforeSave = True
+    ModuGoster
+End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    Application.Calculation = xlCalculationAutomatic
+End Sub
+
+===================================================================
+ BOLUM 4  -  "STOK GIRIS CIKIS" SAYFA KODU
+ Soldaki bu sayfanin nesnesine cift tikla, asagiyi yapistir.
+ (Kisayollar: senin urun listendir; istedigin gibi cogaltabilirsin.)
+===================================================================
+
+Option Explicit
+
+Private Sub Worksheet_Change(ByVal Target As Range)
+    On Error GoTo ExitHandler
+
+    If Target.CountLarge > 1 Then Exit Sub
+    If Len(CStr(Target.Value2)) = 0 Then Exit Sub
+
+    Application.EnableEvents = False
+
+    ' B SUTUNU (2) - PERSONEL ADI OTOMATIK KONTROLU
+    If Target.Column = 2 And Target.Row >= 2 Then
+        OtomatikPersonelKontrol Target
+        GoTo ExitHandler
+    End If
+
+    ' C SUTUNU (3) - MALZEME KISAYOLU + STOK KONTROLU
+    If Target.Column = 3 Then
+        Dim eskiDeger As String
+        eskiDeger = CStr(Target.Value2)
+
+        Select Case UCase$(Trim$(eskiDeger))
+            ' -----------------------SARF MALZEMELERİ-----------------------
+            Case "E"
+                Target.Value2 = "ELDİVEN"
+            Case "K1"
+                Target.Value2 = "N2 MOBİL C200 KAMERA"
+            Case "K2"
+                Target.Value2 = "N2 C203 KAMERA"
+            Case "DAY"
+                Target.Value2 = "DAYSON EXTRA SİLİKON 280 ML"
+            Case "KP"
+                Target.Value2 = "KÜÇÜK PİL"
+            Case "CI"
+                Target.Value2 = "OEM CIRT ZIMPARA ALTI 115MM DELİKSİZ"
+            Case "BS"
+                Target.Value2 = "BULAŞIK SÜNGERİ ACORD"
+            Case "BE"
+                Target.Value2 = "CEYFİX BULAŞIK ELDİVENİ"
+            Case "BTC"
+                Target.Value2 = "BARET TUTUCU"
+            Case "PÇ", "PORÇÖZ"
+                Target.Value2 = "POR ÇÖZ PAS KİREÇ SÖKÜCÜ"
+            Case "BP"
+                Target.Value2 = "BÜYÜK PİL"
+            Case "OP", "OK"
+                Target.Value2 = "ODA PARFÜMÜ AİRVİCK"
+            Case "TG", "TGK"
+                Target.Value2 = "TAKOGRAF KAĞIDI"
+            Case "YT1"
+                Target.Value2 = "YANGIN TÜPÜ 1KG"
+            Case "YT2"
+                Target.Value2 = "YANGIN TÜPÜ 2KG"
+            Case "YT6"
+                Target.Value2 = "YANGIN TÜPÜ 6KG"
+            Case "İÇ"
+                Target.Value2 = "İLK YARDIM ÇANTASI"
+            Case "İS"
+                Target.Value2 = "İLK YARDIM SETİ"
+            Case "B"
+                Target.Value2 = "BARDAK"
+            Case "KB"
+                Target.Value2 = "KAHVE BARDAĞI KÜÇÜK"
+            Case "Z"
+                Target.Value2 = "Z PEÇETE"
+            Case "T"
+                Target.Value2 = "BEYAZ TYBEK TULUM"
+            Case "TA", "K"
+                Target.Value2 = "TAHTA KARIŞTIRIÇI"
+            Case "M"
+                Target.Value2 = "MASKE FİLTRELİ SOLUNUM"
+            Case "Ç"
+                Target.Value2 = "ÇAY KARALİ 1KG"
+            Case "YEP", "YP"
+                Target.Value2 = "SPİİLKIT YAĞ EMİCİ BEZ"
+            Case "YA"
+                Target.Value2 = "YAĞMURLUK"
+            Case "TU"
+                Target.Value2 = "TUVALET KAĞIDI"
+            Case "AT", "NE", "SE", "ATE"
+                Target.Value2 = "PERLA NİTRİL ELDİVEN ANAHTAR TUTUCU"
+            Case "BEM"
+                Target.Value2 = "MUAYNE ELDİVENİ"
+            Case "Ş"
+                Target.Value2 = "ŞEKER STİCK"
+            Case "ÇÇB", "ÇUB"
+                Target.Value2 = "ÇÖP POŞETİ 120*150"
+            Case "ÇB"
+                Target.Value2 = "ÇÖP POŞETİ BÜYÜK 80*110"
+            Case "ÇO"
+                Target.Value2 = "ÇÖP POŞETİ ORTA BOY"
+            Case "GS"
+                Target.Value2 = "GÖZLÜK SİYAH 3M  SF102AF-BLU"
+            Case "GŞ", "GB"
+                Target.Value2 = "GÖZLÜK BEYAZ 3M  SF101AF-BLK"
+            Case "GÜ", "GÜG"
+                Target.Value2 = "GÖZLÜK ÜSTÜ GÖZLÜK 3M ŞEFFAF"
+            Case "D"
+                Target.Value2 = "ELDİVEN DARBE EMİCİ 9XL"
+            Case "O", "ODA"
+                Target.Value2 = "ODA PARFÜMÜ AİRVİCK"
+            Case "TÜ", "TÜK"
+                Target.Value2 = "TÜRK KAHVESİ TOZ 250GR"
+            Case "N"
+                Target.Value2 = "NESCAFE GOLD TENEKE 900GR"
+            Case "ST"
+                Target.Value2 = "NESTLE SÜT TOZU TENEKE 2KG"
+            Case "KF", "FK"
+                Target.Value2 = "FİLTRE KAHVE 250GR"
+            Case "HP", "KH", "H"
+                Target.Value2 = "KAĞIT HAVLU"
+            Case "A4"
+                Target.Value2 = "A4 KAĞIDI"
+            Case "YT"
+                Target.Value2 = "YÜZEY TEMİZLEYİCİ ECOFAB FRESH 20 LT"
+            Case "ÇS"
+                Target.Value2 = "ÇAMAŞIR SUYU 30LT"
+            Case "CT"
+                Target.Value2 = "CAM TEMİZLEYİCİ 5 LT"
+            Case "ES", "SES", "SS"
+                Target.Value2 = "SIVI EL SABUNU ROLL PAK 30LT"
+            Case "AYŞ", "AŞ", "AY"
+                Target.Value2 = "ARAÇ YIKAMA ŞAMPUANI 30LT"
+            Case "IM"
+                Target.Value2 = "ISLAK MENDİL"
+            Case "SIM", "IMS"
+                Target.Value2 = "SLEEPY TEMİZLİK HAVLUSU"
+            Case "SY", "YES"
+                Target.Value2 = "SPİİLIT YAĞ EMİCİ SOSİS"
+            Case "TK"
+                Target.Value2 = "TÜKENMEZ KALEM MAVİ"
+            Case "TB"
+                Target.Value2 = "BEZ TEMİZLİK"
+            Case "TEL"
+                Target.Value2 = "BEOFENG TELSİZ"
+            Case "SÜ"
+                Target.Value2 = "NESTLE SÜT TOZU TENEKE 2KG"
+            Case "KMG", "KG", "MGK"
+                Target.Value2 = "KLASÖR  MAVİ GENİŞ"
+            Case "KMD", "KD", "MDK"
+                Target.Value2 = "KLASÖR  MAVİ DAR"
+            Case "KK"
+                Target.Value2 = "KAHVERENGİ KARTON KLASÖR"
+            Case "PD", "ŞD"
+                Target.Value2 = "ŞEFFAF DOSYA"
+            Case "TD"
+                Target.Value2 = "TELLİ DOSYA MAVİ"
+            Case "ZTK"
+                Target.Value2 = "ZIMBA TELİ KÜÇÜK"
+            Case "ZTB"
+                Target.Value2 = "ZIMBA TELİ BÜYÜK"
+            Case "ZMK", "ZK"
+                Target.Value2 = "ZIMBA MAKİNESİ KÜÇÜK"
+            Case "ZMB", "ZB"
+                Target.Value2 = "ZIMBA MAKİNESİ BÜYÜK"
+
+            ' -------------------KAZAKLAR---------------------------
+            Case "KS"
+                Target.Value2 = "POLO YAKA SWEAT S BEDEN"
+            Case "KM"
+                Target.Value2 = "POLO YAKA SWEAT M BEDEN"
+            Case "KL"
+                Target.Value2 = "POLO YAKA SWEAT L BEDEN"
+            Case "KXL"
+                Target.Value2 = "POLO YAKA SWEAT XL BEDEN"
+            Case "K2XL"
+                Target.Value2 = "POLO YAKA SWEAT 2XL BEDEN"
+            Case "K3XL"
+                Target.Value2 = "POLO YAKA SWEAT 3XL BEDEN"
+            Case "K4XL"
+                Target.Value2 = "POLO YAKA SWEAT 4XL BEDEN"
+            Case "K5XL"
+                Target.Value2 = "POLO YAKA SWEAT 5XL BEDEN"
+            Case "SPS"
+                Target.Value2 = "SİYAH POLAR S BEDEN"
+            Case "SPM"
+                Target.Value2 = "SİYAH POLAR M BEDEN"
+            Case "SPL"
+                Target.Value2 = "SİYAH POLAR L BEDEN"
+            Case "SPXL"
+                Target.Value2 = "SİYAH POLAR XL BEDEN"
+            Case "SP2XL"
+                Target.Value2 = "SİYAH POLAR 2XL BEDEN"
+            Case "SP3XL"
+                Target.Value2 = "SİYAH POLAR 3XL BEDEN"
+            Case "SP4XL"
+                Target.Value2 = "SİYAH POLAR 4XL BEDEN"
+            Case "SP5XL"
+                Target.Value2 = "SİYAH POLAR 5XL BEDEN"
+            Case "GPS"
+                Target.Value2 = "GRİ POLAR S BEDEN"
+            Case "GPM"
+                Target.Value2 = "GRİ POLAR M BEDEN"
+            Case "GPL"
+                Target.Value2 = "GRİ POLAR L BEDEN"
+            Case "GPXL"
+                Target.Value2 = "GRİ POLAR XL BEDEN"
+            Case "GP2XL"
+                Target.Value2 = "GRİ POLAR 2XL BEDEN"
+            Case "GP3XL"
+                Target.Value2 = "GRİ POLAR 3XL BEDEN"
+            Case "GP5XL"
+                Target.Value2 = "GRİ POLAR 5XL BEDEN"
+            Case "GP4XL"
+                Target.Value2 = "GRİ POLAR 4XL BEDEN"
+            Case "KPS"
+                Target.Value2 = "KUM POLAR S BEDEN"
+            Case "KPM"
+                Target.Value2 = "KUM POLAR M BEDEN"
+            Case "KPL"
+                Target.Value2 = "KUM POLAR L BEDEN"
+            Case "KPXL"
+                Target.Value2 = "KUM POLAR XL BEDEN"
+            Case "KP2XL"
+                Target.Value2 = "KUM POLAR 2XL BEDEN"
+            Case "HPXS"
+                Target.Value2 = "HAKİ POLAR XS BEDEN"
+            Case "HPS"
+                Target.Value2 = "HAKİ POLAR S BEDEN"
+            Case "HPM"
+                Target.Value2 = "HAKİ POLAR M BEDEN"
+            Case "HPL"
+                Target.Value2 = "HAKİ POLAR L BEDEN"
+            Case "HPXL"
+                Target.Value2 = "HAKİ POLAR XL BEDEN"
+            Case "HP2XL"
+                Target.Value2 = "HAKİ POLAR 2XL BEDEN"
+            Case "HP3XL"
+                Target.Value2 = "HAKİ POLAR 3XL BEDEN"
+            Case "HP4XL"
+                Target.Value2 = "HAKİ POLAR 4XL BEDEN"
+            Case "TPXS"
+                Target.Value2 = "TAKTİKAL PANTOLON XS BEDEN"
+            Case "TPS"
+                Target.Value2 = "TAKTİKAL PANTOLON S BEDEN"
+            Case "TPM"
+                Target.Value2 = "TAKTİKAL PANTOLON M BEDEN"
+            Case "TPL"
+                Target.Value2 = "TAKTİKAL PANTOLON L BEDEN"
+            Case "TPXL"
+                Target.Value2 = "TAKTİKAL PANTOLON XL BEDEN"
+            Case "TP2XL"
+                Target.Value2 = "TAKTİKAL PANTOLON 2XL BEDEN"
+            Case "TP3XL"
+                Target.Value2 = "TAKTİKAL PANTOLON 3XL BEDEN"
+            Case "TP4XL"
+                Target.Value2 = "TAKTİKAL PANTOLON 4XL BEDEN"
+            Case "TP5XL"
+                Target.Value2 = "TAKTİKAL PANTOLON 5XL BEDEN"
+            Case "KGM"
+                Target.Value2 = "KUM GÖMLEK M BEDEN"
+            Case "KGL"
+                Target.Value2 = "KUM GÖMLEK L BEDEN"
+            Case "KGXL"
+                Target.Value2 = "KUM GÖMLEK XL BEDEN"
+            Case "KG2XL"
+                Target.Value2 = "KUM GÖMLEK 2XL BEDEN"
+            Case "GGM"
+                Target.Value2 = "GRİ GÖMLEK M BEDEN"
+            Case "GGL"
+                Target.Value2 = "GRİ GÖMLEK L BEDEN"
+            Case "GGXL"
+                Target.Value2 = "GRİ GÖMLEK XL BEDEN"
+            Case "GG2XL"
+                Target.Value2 = "GRİ GÖMLEK 2XL BEDEN"
+            Case "HGS"
+                Target.Value2 = "HAKİ GÖMLEK S BEDEN"
+            Case "HGXS"
+                Target.Value2 = "HAKİ GÖMLEK XS BEDEN"
+            Case "HGM"
+                Target.Value2 = "HAKİ GÖMLEK M BEDEN"
+            Case "HGL"
+                Target.Value2 = "HAKİ GÖMLEK L BEDEN"
+            Case "HGXL"
+                Target.Value2 = "HAKİ GÖMLEK XL BEDEN"
+            Case "HG2XL"
+                Target.Value2 = "HAKİ GÖMLEK 2XL BEDEN"
+            Case "HG3XL"
+                Target.Value2 = "HAKİ GÖMLEK 3XL BEDEN"
+            Case "STS"
+                Target.Value2 = "SİYAH T-SHİRT S BEDEN"
+            Case "STXS"
+                Target.Value2 = "SİYAH T-SHİRT XS BEDEN"
+            Case "STM"
+                Target.Value2 = "SİYAH T-SHİRT M BEDEN"
+            Case "STL"
+                Target.Value2 = "SİYAH T-SHİRT L BEDEN"
+            Case "STXL"
+                Target.Value2 = "SİYAH T-SHİRT XL BEDEN"
+            Case "ST2XL"
+                Target.Value2 = "SİYAH T-SHİRT 2XL BEDEN"
+            Case "ST3XL"
+                Target.Value2 = "SİYAH T-SHİRT 3XL BEDEN"
+            Case "ST4XL"
+                Target.Value2 = "SİYAH T-SHİRT 4XL BEDEN"
+            Case "YS"
+                Target.Value2 = "YELEK SARI S"
+            Case "YM"
+                Target.Value2 = "YELEK SARI M"
+            Case "YL"
+                Target.Value2 = "YELEK SARI L"
+            Case "YXL"
+                Target.Value2 = "YELEK SARI XL"
+            Case "Y2XL"
+                Target.Value2 = "YELEK SARI 2XL"
+            Case "Y3XL"
+                Target.Value2 = "YELEK SARI 3XL"
+            Case "Y4XL"
+                Target.Value2 = "YELEK SARI 4XL"
+            Case "Y5XL"
+                Target.Value2 = "YELEK SARI 5XL"
+            Case "YMM"
+                Target.Value2 = "İKAZ YELEĞİ MAVİ MÜHENDİS"
+
+            ' -----------------------BARETLER--------------------------
+            Case "BM"
+                Target.Value2 = "BARET MAVİ  KARAM ENDÜSTRİYEL KB505"
+            Case "BB"
+                Target.Value2 = "BARET BEYAZ  KARAM ENDÜSTRİYEL KB505"
+            Case "BK"
+                Target.Value2 = "BARET KIRMIZI  KARAM ENDÜSTRİYEL KB505"
+            Case "BT"
+                Target.Value2 = "BARET TURUNCU  KARAM ENDÜSTRİYEL KB505"
+
+            ' ---------------------MONTLAR--------------------------------
+            Case "MKS"
+                Target.Value2 = "KABAN KIRMIZI S BEDEN"
+            Case "MKM"
+                Target.Value2 = "KABAN KIRMIZI M BEDEN"
+            Case "MKL"
+                Target.Value2 = "KABAN KIRMIZI L BEDEN"
+            Case "MKXL"
+                Target.Value2 = "KABAN KIRMIZI XL BEDEN"
+            Case "MK2XL"
+                Target.Value2 = "KABAN KIRMIZI 2XL BEDEN"
+            Case "MK3XL"
+                Target.Value2 = "KABAN KIRMIZI 3XL BEDEN"
+            Case "MK4XL"
+                Target.Value2 = "KABAN KIRMIZI 4XL BEDEN"
+            Case "MK5XL"
+                Target.Value2 = "KABAN KIRMIZI 5XL BEDEN"
+            Case "MK6XL"
+                Target.Value2 = "KABAN KIRMIZI 6XL BEDEN"
+            Case "MLS"
+                Target.Value2 = "KABAN LACİVERT S BEDEN"
+            Case "MLM"
+                Target.Value2 = "KABAN LACİVERT M BEDEN"
+            Case "MLL"
+                Target.Value2 = "KABAN LACİVERT L BEDEN"
+            Case "MLXL"
+                Target.Value2 = "KABAN LACİVERT XL BEDEN"
+            Case "ML2XL"
+                Target.Value2 = "KABAN LACİVERT 2XL BEDEN"
+            Case "ML3XL"
+                Target.Value2 = "KABAN LACİVERT 3XL BEDEN"
+            Case "ML4XL"
+                Target.Value2 = "KABAN LACİVERT 4XL BEDEN"
+            Case "ML5XL"
+                Target.Value2 = "KABAN LACİVERT 5XL BEDEN"
+            Case "ML6XL"
+                Target.Value2 = "KABAN LACİVERT 6XL BEDEN"
+            Case "MGS"
+                Target.Value2 = "KABAN GRİ S BEDEN"
+            Case "MGM"
+                Target.Value2 = "KABAN GRİ M BEDEN"
+            Case "MGL"
+                Target.Value2 = "KABAN GRİ L BEDEN"
+            Case "MGXL"
+                Target.Value2 = "KABAN GRİ XL BEDEN"
+            Case "MG2XL"
+                Target.Value2 = "KABAN GRİ 2XL BEDEN"
+            Case "MG3XL"
+                Target.Value2 = "KABAN GRİ 3XL BEDEN"
+            Case "MG4XL"
+                Target.Value2 = "KABAN GRİ 4XL BEDEN"
+            Case "MG5XL"
+                Target.Value2 = "KABAN GRİ 5XL BEDEN"
+            Case "MG6XL"
+                Target.Value2 = "KABAN GRİ 6XL BEDEN"
+            Case "MG7XL"
+                Target.Value2 = "KABAN GRİ 7XL BEDEN"
+            Case "MG8XL"
+                Target.Value2 = "KABAN GRİ 8XL BEDEN"
+            Case "MMS"
+                Target.Value2 = "KABAN MAVİ S BEDEN"
+            Case "MMM"
+                Target.Value2 = "KABAN MAVİ M BEDEN"
+            Case "MML"
+                Target.Value2 = "KABAN MAVİ L BEDEN"
+            Case "MMXL"
+                Target.Value2 = "KABAN MAVİ XL BEDEN"
+            Case "MM2XL"
+                Target.Value2 = "KABAN MAVİ 2XL BEDEN"
+            Case "MM3XL"
+                Target.Value2 = "KABAN MAVİ 3XL BEDEN"
+            Case "MM4XL"
+                Target.Value2 = "KABAN MAVİ 4XL BEDEN"
+            Case "MM5XL"
+                Target.Value2 = "KABAN MAVİ 5XL BEDEN"
+            Case "MM6XL"
+                Target.Value2 = "KABAN MAVİ 6XL BEDEN"
+            Case "MM7XL"
+                Target.Value2 = "KABAN MAVİ 7XL BEDEN"
+            Case "MTS"
+                Target.Value2 = "KABAN TURUNCU S BEDEN"
+            Case "MTM"
+                Target.Value2 = "KABAN TURUNCU M BEDEN"
+            Case "MTL"
+                Target.Value2 = "KABAN TURUNCU L BEDEN"
+            Case "MTXL"
+                Target.Value2 = "KABAN TURUNCU XL BEDEN"
+            Case "MT2XL"
+                Target.Value2 = "KABAN TURUNCU 2XL BEDEN"
+            Case "MT3XL"
+                Target.Value2 = "KABAN TURUNCU 3XL BEDEN"
+            Case "MT4XL"
+                Target.Value2 = "KABAN TURUNCU 4XL BEDEN"
+            Case "MT5XL"
+                Target.Value2 = "KABAN TURUNCU 5XL BEDEN"
+            Case "MYS"
+                Target.Value2 = "KABAN YEŞİL S BEDEN"
+            Case "MYM"
+                Target.Value2 = "KABAN YEŞİL M BEDEN"
+            Case "MYL"
+                Target.Value2 = "KABAN YEŞİL L BEDEN"
+            Case "MYXL"
+                Target.Value2 = "KABAN YEŞİL XL BEDEN"
+            Case "MY2XL"
+                Target.Value2 = "KABAN YEŞİL 2XL BEDEN"
+            Case "MY3XL"
+                Target.Value2 = "KABAN YEŞİL 3XL BEDEN"
+            Case "MY4XL"
+                Target.Value2 = "KABAN YEŞİL 4XL BEDEN"
+            Case "MY5XL"
+                Target.Value2 = "KABAN YEŞİL 5XL BEDEN"
+            Case "MY6XL"
+                Target.Value2 = "KABAN YEŞİL 6XL BEDEN"
+            Case "SMS", "MSS"
+                Target.Value2 = "SİYAH MONT S BEDEN"
+            Case "SMXS", "MSXS"
+                Target.Value2 = "SİYAH MONT XS BEDEN"
+            Case "SMM", "MSM"
+                Target.Value2 = "SİYAH MONT M BEDEN"
+            Case "SML", "MSL"
+                Target.Value2 = "SİYAH MONT L BEDEN"
+            Case "SMXL", "MSXL"
+                Target.Value2 = "SİYAH MONT XL BEDEN"
+            Case "SM2XL", "MS2XL"
+                Target.Value2 = "SİYAH MONT 2XL BEDEN"
+            Case "SM3XL", "MS3XL"
+                Target.Value2 = "SİYAH MONT 3XL BEDEN"
+            Case "SM4XL", "MS4XL"
+                Target.Value2 = "SİYAH MONT 4XL BEDEN"
+            Case "SM5XL", "MS5XL"
+                Target.Value2 = "SİYAH MONT 5XL BEDEN"
+            Case "SAMS"
+                Target.Value2 = "SARI MONT S"
+            Case "SAMM"
+                Target.Value2 = "SARI MONT M"
+            Case "SAML"
+                Target.Value2 = "SARI MONT L"
+            Case "SAMXL"
+                Target.Value2 = "SARI MONT XL"
+            Case "SAM2XL"
+                Target.Value2 = "SARI MONT 2XL"
+            Case "SAM3XL"
+                Target.Value2 = "SARI MONT 3XL"
+            Case "SAM4XL"
+                Target.Value2 = "SARI MONT 4XL"
+            Case "SAM5XL"
+                Target.Value2 = "SARI MONT 5XL"
+            Case "KRM", "KRZM"
+                Target.Value2 = "KIRMIZI RED ZONE MONTU"
+            Case "MOS"
+                Target.Value2 = "OXFORD KABAN S BEDEN"
+            Case "MOM"
+                Target.Value2 = "OXFORD KABAN M BEDEN"
+            Case "MOL"
+                Target.Value2 = "OXFORD KABAN L BEDEN"
+            Case "MOXL"
+                Target.Value2 = "OXFORD KABAN XL BEDEN"
+            Case "MO5XL"
+                Target.Value2 = "OXFORD KABAN 5XL BEDEN"
+
+            ' --------------------PANTALONLAR----------------------------------
+            Case "PM48"
+                Target.Value2 = "PANTOLON MAVİ 48 BEDEN"
+            Case "PM50"
+                Target.Value2 = "PANTOLON MAVİ 50 BEDEN"
+            Case "PM52"
+                Target.Value2 = "PANTOLON MAVİ 52 BEDEN"
+            Case "PM54"
+                Target.Value2 = "PANTOLON MAVİ 54 BEDEN"
+            Case "PM56"
+                Target.Value2 = "PANTOLON MAVİ 56 BEDEN"
+            Case "PM58"
+                Target.Value2 = "PANTOLON MAVİ 58 BEDEN"
+            Case "PM60"
+                Target.Value2 = "PANTOLON MAVİ 60 BEDEN"
+            Case "PM62"
+                Target.Value2 = "PANTOLON MAVİ 62 BEDEN"
+            Case "PM64"
+                Target.Value2 = "PANTOLON MAVİ 64 BEDEN"
+            Case "PK48"
+                Target.Value2 = "PANTOLON KIRMIZI 48 BEDEN"
+            Case "PK50"
+                Target.Value2 = "PANTOLON KIRMIZI 50 BEDEN"
+            Case "PK52"
+                Target.Value2 = "PANTOLON KIRMIZI 52 BEDEN"
+            Case "PK54"
+                Target.Value2 = "PANTOLON KIRMIZI 54 BEDEN"
+            Case "PK56"
+                Target.Value2 = "PANTOLON KIRMIZI 56 BEDEN"
+            Case "PK58"
+                Target.Value2 = "PANTOLON KIRMIZI 58 BEDEN"
+            Case "PK60"
+                Target.Value2 = "PANTOLON KIRMIZI 60 BEDEN"
+            Case "PK62"
+                Target.Value2 = "PANTOLON KIRMIZI 62 BEDEN"
+            Case "PK64"
+                Target.Value2 = "PANTOLON KIRMIZI 64 BEDEN"
+            Case "PL48"
+                Target.Value2 = "PANTOLON LACİVERT 48 BEDEN"
+            Case "PL50"
+                Target.Value2 = "PANTOLON LACİVERT 50 BEDEN"
+            Case "PL52"
+                Target.Value2 = "PANTOLON LACİVERT 52 BEDEN"
+            Case "PL54"
+                Target.Value2 = "PANTOLON LACİVERT 54 BEDEN"
+            Case "PL56"
+                Target.Value2 = "PANTOLON LACİVERT 56 BEDEN"
+            Case "PL58"
+                Target.Value2 = "PANTOLON LACİVERT 58 BEDEN"
+            Case "PL60"
+                Target.Value2 = "PANTOLON LACİVERT 60 BEDEN"
+            Case "PL62"
+                Target.Value2 = "PANTOLON LACİVERT 62 BEDEN"
+            Case "PL64"
+                Target.Value2 = "PANTOLON LACİVERT 64 BEDEN"
+            Case "PL66"
+                Target.Value2 = "PANTOLON LACİVERT 66 BEDEN"
+            Case "PL68"
+                Target.Value2 = "PANTOLON LACİVERT 68 BEDEN"
+            Case "PL70"
+                Target.Value2 = "PANTOLON LACİVERT 70 BEDEN"
+            Case "PY48"
+                Target.Value2 = "PANTOLON YEŞİL 48 BEDEN"
+            Case "PY50"
+                Target.Value2 = "PANTOLON YEŞİL 50 BEDEN"
+            Case "PY52"
+                Target.Value2 = "PANTOLON YEŞİL 52 BEDEN"
+            Case "PY54"
+                Target.Value2 = "PANTOLON YEŞİL 54 BEDEN"
+            Case "PY56"
+                Target.Value2 = "PANTOLON YEŞİL 56 BEDEN"
+            Case "PY58"
+                Target.Value2 = "PANTOLON YEŞİL 58 BEDEN"
+            Case "PY60"
+                Target.Value2 = "PANTOLON YEŞİL 60 BEDEN"
+            Case "PY62"
+                Target.Value2 = "PANTOLON YEŞİL 62 BEDEN"
+            Case "PY64"
+                Target.Value2 = "PANTOLON YEŞİL 64 BEDEN"
+            Case "PY66"
+                Target.Value2 = "PANTOLON YEŞİL 66 BEDEN"
+            Case "PT48"
+                Target.Value2 = "PANTOLON TURUNCU 48 BEDEN"
+            Case "PT50"
+                Target.Value2 = "PANTOLON TURUNCU 50 BEDEN"
+            Case "PT52"
+                Target.Value2 = "PANTOLON TURUNCU 52 BEDEN"
+            Case "PT54"
+                Target.Value2 = "PANTOLON TURUNCU 54 BEDEN"
+            Case "PT56"
+                Target.Value2 = "PANTOLON TURUNCU 56 BEDEN"
+            Case "PT58"
+                Target.Value2 = "PANTOLON TURUNCU 58 BEDEN"
+            Case "PT60"
+                Target.Value2 = "PANTOLON TURUNCU 60 BEDEN"
+            Case "PT62"
+                Target.Value2 = "PANTOLON TURUNCU 62 BEDEN"
+            Case "PT64"
+                Target.Value2 = "PANTOLON TURUNCU 64 BEDEN"
+            Case "PT66"
+                Target.Value2 = "PANTOLON TURUNCU 66 BEDEN"
+            Case "PG48"
+                Target.Value2 = "PANTOLON GRİ 48 BEDEN"
+            Case "PG50"
+                Target.Value2 = "PANTOLON GRİ 50 BEDEN"
+            Case "PG52"
+                Target.Value2 = "PANTOLON GRİ 52 BEDEN"
+            Case "PG54"
+                Target.Value2 = "PANTOLON GRİ 54 BEDEN"
+            Case "PG56"
+                Target.Value2 = "PANTOLON GRİ 56 BEDEN"
+            Case "PG58"
+                Target.Value2 = "PANTOLON GRİ 58 BEDEN"
+            Case "PG60"
+                Target.Value2 = "PANTOLON GRİ 60 BEDEN"
+            Case "PG62"
+                Target.Value2 = "PANTOLON GRİ 62 BEDEN"
+            Case "PG64"
+                Target.Value2 = "PANTOLON GRİ 64 BEDEN"
+            Case "PG66"
+                Target.Value2 = "PANTOLON GRİ 66 BEDEN"
+
+            ' ----------TULUMLAR-------------------------
+            Case "KTS"
+                Target.Value2 = "KIRMIZI TULUM S BEDEN"
+            Case "KTM"
+                Target.Value2 = "KIRMIZI TULUM M BEDEN"
+            Case "KTL"
+                Target.Value2 = "KIRMIZI TULUM L BEDEN"
+            Case "KTXL"
+                Target.Value2 = "KIRMIZI TULUM XL BEDEN"
+            Case "KT2XL"
+                Target.Value2 = "KIRMIZI TULUM 2XL BEDEN"
+            Case "KT3XL"
+                Target.Value2 = "KIRMIZI TULUM 3XL BEDEN"
+            Case "KT4XL"
+                Target.Value2 = "KIRMIZI TULUM 4XL BEDEN"
+            Case "KT5XL"
+                Target.Value2 = "KIRMIZI TULUM 5XL BEDEN"
+
+            ' -------------------AYAKKABILAR-----------------------------------
+            Case "BO37", "BOT37", "B37"
+                Target.Value2 = "AYAKKABI 37  STARLINE 9040B-83"
+            Case "BO38", "BOT38", "B38"
+                Target.Value2 = "AYAKKABI 38  STARLINE 9040B-83"
+            Case "BO39", "BOT39", "B39"
+                Target.Value2 = "AYAKKABI 39  STARLINE 9040B-83"
+            Case "BO40", "BOT40", "B40"
+                Target.Value2 = "AYAKKABI 40  STARLINE 9040B-83"
+            Case "BO41", "BOT41", "B41"
+                Target.Value2 = "AYAKKABI 41  STARLINE 9040B-83"
+            Case "BO42", "BOT42", "B42"
+                Target.Value2 = "AYAKKABI 42  STARLINE 9040B-83"
+            Case "BO43", "BOT43", "B43"
+                Target.Value2 = "AYAKKABI 43  STARLINE 9040B-83"
+            Case "BO44", "BOT44", "B44"
+                Target.Value2 = "AYAKKABI 44  STARLINE 9040B-83"
+            Case "BO45", "BOT45", "B45"
+                Target.Value2 = "AYAKKABI 45  STARLINE 9040B-83"
+            Case "BO46", "BOT46", "B46"
+                Target.Value2 = "AYAKKABI 46  STARLINE 9040B-83"
+            Case "BO47", "BOT47", "B47"
+                Target.Value2 = "AYAKKABI 47  STARLINE 9040B-83"
+            Case "BM40"
+                Target.Value2 = "AYAKKABI MEKAP 40"
+            Case "BM41"
+                Target.Value2 = "AYAKKABI MEKAP 41"
+            Case "BM42"
+                Target.Value2 = "AYAKKABI MEKAP 42"
+            Case "BM43"
+                Target.Value2 = "AYAKKABI MEKAP 43"
+            Case "BM44"
+                Target.Value2 = "AYAKKABI MEKAP 44"
+            Case "BM45"
+                Target.Value2 = "AYAKKABI MEKAP 45"
+            Case "Ç37"
+                Target.Value2 = "ÇİZME 37  STARLINE 9910-S5-YEŞİL"
+            Case "Ç38"
+                Target.Value2 = "ÇİZME 38  STARLINE 9910-S5-YEŞİL"
+            Case "Ç39"
+                Target.Value2 = "ÇİZME 39  STARLINE 9910-S5-YEŞİL"
+            Case "Ç40"
+                Target.Value2 = "ÇİZME 40  STARLINE 9910-S5-YEŞİL"
+            Case "Ç41"
+                Target.Value2 = "ÇİZME 41  STARLINE 9910-S5-YEŞİL"
+            Case "Ç42"
+                Target.Value2 = "ÇİZME 42  STARLINE 9910-S5-YEŞİL"
+            Case "Ç43"
+                Target.Value2 = "ÇİZME 43  STARLINE 9910-S5-YEŞİL"
+            Case "Ç44"
+                Target.Value2 = "ÇİZME 44  STARLINE 9910-S5-YEŞİL"
+            Case "Ç45"
+                Target.Value2 = "ÇİZME 45  STARLINE 9910-S5-YEŞİL"
+            Case "Ç46"
+                Target.Value2 = "ÇİZME 46  STARLINE 9910-S5-YEŞİL"
+            Case "Ç47"
+                Target.Value2 = "ÇİZME 47  STARLINE 9910-S5-YEŞİL"
+
+        End Select
+
+        ' Kisayol bulunamadiysa (deger degismediyse) STOK GUNCEL'de ara
+        If CStr(Target.Value2) = eskiDeger Then
+            OtomatikStokKontrol Target
+        End If
+    End If
+
+ExitHandler:
+    Application.EnableEvents = True
+End Sub
+
+===================================================================
+ BOLUM 5  -  "STOK GUNCEL" SAYFA KODU
+ Soldaki (STOK GÜNCEL) nesnesine cift tikla, asagiyi yapistir.
+ Boylece bu sekmeye gelince KALAN otomatik guncellenir.
+===================================================================
+
+Private Sub Worksheet_Activate()
+    Me.Calculate
+End Sub
+
+===================================================================
+ BOLUM 6  -  SAYFAYA ELLE EKLENECEKLER (2 buton + gosterge)
+===================================================================
+
+ KASMA NOTU: Butonlar icin FORM DENETIMI dugmesi veya SEKIL kullan.
+ ActiveX dugmesi KULLANMA (kasma/sorun yapan odur).
+
+ A) IKI BUTON
+    Yontem-1 (Form dugmesi): Gelistirici > Ekle > Form Denetimleri >
+       ilk simge (Dugme) > sayfaya ciz > acilan pencerede makro sec.
+    Yontem-2 (Sekil): Ekle (ust menu) > Sekiller > Dikdortgen > ciz >
+       sag tik > Makro Ata.
+    - 1. butona  ManuelHesapAc   ata, uzerine "HIZLI GIRIS" yaz.
+    - 2. butona  OtomatikHesapAc ata, uzerine "OTOMATIK" yaz.
+    (Istersen 3. buton: GuncelleKalan -> "GUNCELLE (F9)")
+
+ B) GOSTERGE KUTUSU (ModKutu)  -- SEKIL olmali (renklenebilsin diye)
+    1. Ekle (ust menu) > Sekiller > Dikdortgen > ciz.
+    2. Sekil SECILIYKEN, sol ustteki Ad Kutusu'na  ModKutu  yaz, Enter.
+       (Veya: Giris > Bul ve Sec > Secim Bolmesi > ismine cift tik >
+        ModKutu yaz.)
+    -> ManuelHesapAc/OtomatikHesapAc calisinca turuncu/yesil olur.
+
+===================================================================
+ GUNLUK KULLANIM
+===================================================================
+ - Dosya acilinca OTOMATIK (gosterge yesil). Herkes normal kullanir.
+ - SEN giris yapacaginda: "HIZLI GIRIS" butonu (gosterge turuncu).
+   * Personel/stok adini yaz; yanlissa secim penceresi cikar.
+   * Kisayollar (E -> ELDIVEN gibi) aninda calisir.
+ - KALAN'i gormek/guncellemek icin: F9 veya "GUNCELLE".
+ - STOK GUNCEL sekmesine gelince o sayfa otomatik guncellenir.
+ - Isin bitince: "OTOMATIK" butonu (veya dosyayi kapat;
+   bir daha acinca zaten otomatik gelir).
+
+===================================================================
+ ARKA PLAN (neden manuel?)
+===================================================================
+ STOK GUNCEL'de KALAN = GIREN - CIKAN. GIREN/CIKAN sutunlari,
+ STOK GIRIS CIKIS (~24.000 satir) ve SAYIM sayfasini tam-sutun
+ SUMIFS ile tariyor; ~2098 satirda. Ayrica STOK GIRIS CIKIS'taki
+ KALAN sutunu ~24.000 satir VLOOKUP yapiyor. Otomatik moddayken
+ her giriste bunlarin hepsi bastan hesaplandigi icin bekleme
+ oluyordu. Manuel modda giris aninda olur; hesap sadece sen
+ istedigin an (F9 / GUNCELLE / STOK GUNCEL'e tiklayinca) yapilir.
+
+ (Istege bagli daha fazla hiz: GIREN/CIKAN formullerindeki
+  A:A C:C D:D gibi tam-sutun referanslarini sinirli aralikla
+  degistirip Tablo1'i gercek satir sayisina kirpmak. KALAN canli
+  kalir, F9 daha hizli biter.)
+
+===================================================================
+ SON
+===================================================================

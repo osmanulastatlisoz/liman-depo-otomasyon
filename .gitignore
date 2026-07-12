@@ -1,0 +1,27 @@
+# ============================================================
+# GERCEK VERI - ASLA yuklenmez (kod haric tek gercek verili klasor)
+# ============================================================
+11-excel-dosyalari/*
+!11-excel-dosyalari/README.md
+
+# Excel gecici/kilit dosyalari
+~$*
+*.tmp
+*.bak
+
+# Calisma durumu / onbellek / log
+*durum*.json
+yollar.json
+*.log
+*.pkl
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE / OS / Claude
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+desktop.ini

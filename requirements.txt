@@ -1,0 +1,8 @@
+openpyxl
+pywin32
+pypdf
+pypdfium2
+Pillow
+numpy
+pynput
+python-docx

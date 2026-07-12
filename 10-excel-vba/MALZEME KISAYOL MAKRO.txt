@@ -1,0 +1,324 @@
+﻿Case "YTMS"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ S BEDEN"
+
+Case "YTMM"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ M BEDEN"
+
+Case "YTML"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ L BEDEN"
+
+Case "YTMXL"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ XL BEDEN"
+
+Case "YTM2XL"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ 2XL BEDEN"
+
+Case "YTM3XL"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ 3XL BEDEN"
+
+Case "YTM4XL"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ 4XL BEDEN"
+
+Case "YTM5XL"
+                Target.Value2 = "YAZLIK TİŞÖRT MAVİ 5XL BEDEN"
+
+Case "YTKS"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI S BEDEN"
+
+Case "YTKM"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI M BEDEN"
+
+Case "YTKL"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI L BEDEN"
+
+Case "YTKXL"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI XL BEDEN"
+
+Case "YTK2XL"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI 2XL BEDEN"
+
+Case "YTK3XL"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI 3XL BEDEN"
+
+Case "YTK4XL"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI 4XL BEDEN"
+
+Case "YTK5XL"
+                Target.Value2 = "YAZLIK TİŞÖRT KIRMIZI 5XL BEDEN"
+
+Case "YTLS"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT S BEDEN"
+
+Case "YTLM"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT M BEDEN"
+
+Case "YTLL"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT L BEDEN"
+
+Case "YTLXL"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT XL BEDEN"
+
+Case "YTL2XL"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT 2XL BEDEN"
+
+Case "YTL3XL"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT 3XL BEDEN"
+
+Case "YTL4XL"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT 4XL BEDEN"
+
+Case "YTL5XL"
+                Target.Value2 = "YAZLIK TİŞÖRT LACİVERT 5XL BEDEN"
+
+Case "YTGS"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ S BEDEN"
+
+Case "YTGM"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ M BEDEN"
+
+Case "YTGL"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ L BEDEN"
+
+Case "YTGXL"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ XL BEDEN"
+
+Case "YTG2XL"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ 2XL BEDEN"
+
+Case "YTG3XL"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ 3XL BEDEN"
+
+Case "YTG4XL"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ 4XL BEDEN"
+
+Case "YTG5XL"
+                Target.Value2 = "YAZLIK TİŞÖRT GRİ 5XL BEDEN"
+
+Case "YTTS"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU S BEDEN"
+
+Case "YTTM"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU M BEDEN"
+
+Case "YTTL"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU L BEDEN"
+
+Case "YTTXL"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU XL BEDEN"
+
+Case "YTT2XL"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU 2XL BEDEN"
+
+Case "YTT3XL"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU 3XL BEDEN"
+
+Case "YTT4XL"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU 4XL BEDEN"
+
+Case "YTT5XL"
+                Target.Value2 = "YAZLIK TİŞÖRT TURUNCU 5XL BEDEN"
+
+Case "YTYS"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL S BEDEN"
+
+Case "YTYM"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL M BEDEN"
+
+Case "YTYL"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL L BEDEN"
+
+Case "YTYXL"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL XL BEDEN"
+
+Case "YTY2XL"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL 2XL BEDEN"
+
+Case "YTY3XL"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL 3XL BEDEN"
+
+Case "YTY4XL"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL 4XL BEDEN"
+
+Case "YTY5XL"
+                Target.Value2 = "YAZLIK TİŞÖRT YEŞİL 5XL BEDEN"
+
+Case "YPM48"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 48 BEDEN"
+
+Case "YPM50"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 50 BEDEN"
+
+Case "YPM52"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 52 BEDEN"
+
+Case "YPM54"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 54 BEDEN"
+
+Case "YPM56"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 56 BEDEN"
+
+Case "YPM58"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 58 BEDEN"
+
+Case "YPM60"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 60 BEDEN"
+
+Case "YPM62"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 62 BEDEN"
+
+Case "YPM64"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 64 BEDEN"
+
+Case "YPM66"
+                Target.Value2 = "YAZLIK PANTOLON MAVİ 66 BEDEN"
+
+Case "YPK48"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 48 BEDEN"
+
+Case "YPK50"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 50 BEDEN"
+
+Case "YPK52"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 52 BEDEN"
+
+Case "YPK54"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 54 BEDEN"
+
+Case "YPK56"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 56 BEDEN"
+
+Case "YPK58"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 58 BEDEN"
+
+Case "YPK60"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 60 BEDEN"
+
+Case "YPK62"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 62 BEDEN"
+
+Case "YPK64"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 64 BEDEN"
+
+Case "YPK66"
+                Target.Value2 = "YAZLIK PANTOLON KIRMIZI 66 BEDEN"
+
+Case "YPL48"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 48 BEDEN"
+
+Case "YPL50"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 50 BEDEN"
+
+Case "YPL52"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 52 BEDEN"
+
+Case "YPL54"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 54 BEDEN"
+
+Case "YPL56"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 56 BEDEN"
+
+Case "YPL58"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 58 BEDEN"
+
+Case "YPL60"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 60 BEDEN"
+
+Case "YPL62"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 62 BEDEN"
+
+Case "YPL64"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 64 BEDEN"
+
+Case "YPL66"
+                Target.Value2 = "YAZLIK PANTOLON LACİVERT 66 BEDEN"
+
+Case "YPG48"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 48 BEDEN"
+
+Case "YPG50"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 50 BEDEN"
+
+Case "YPG52"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 52 BEDEN"
+
+Case "YPG54"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 54 BEDEN"
+
+Case "YPG56"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 56 BEDEN"
+
+Case "YPG58"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 58 BEDEN"
+
+Case "YPG60"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 60 BEDEN"
+
+Case "YPG62"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 62 BEDEN"
+
+Case "YPG64"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 64 BEDEN"
+
+Case "YPG66"
+                Target.Value2 = "YAZLIK PANTOLON GRİ 66 BEDEN"
+
+Case "YPT48"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 48 BEDEN"
+
+Case "YPT50"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 50 BEDEN"
+
+Case "YPT52"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 52 BEDEN"
+
+Case "YPT54"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 54 BEDEN"
+
+Case "YPT56"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 56 BEDEN"
+
+Case "YPT58"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 58 BEDEN"
+
+Case "YPT60"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 60 BEDEN"
+
+Case "YPT62"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 62 BEDEN"
+
+Case "YPT64"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 64 BEDEN"
+
+Case "YPT66"
+                Target.Value2 = "YAZLIK PANTOLON TURUNCU 66 BEDEN"
+
+Case "YPY48"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 48 BEDEN"
+
+Case "YPY50"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 50 BEDEN"
+
+Case "YPY52"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 52 BEDEN"
+
+Case "YPY54"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 54 BEDEN"
+
+Case "YPY56"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 56 BEDEN"
+
+Case "YPY58"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 58 BEDEN"
+
+Case "YPY60"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 60 BEDEN"
+
+Case "YPY62"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 62 BEDEN"
+
+Case "YPY64"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 64 BEDEN"
+
+Case "YPY66"
+                Target.Value2 = "YAZLIK PANTOLON YEŞİL 66 BEDEN"
+

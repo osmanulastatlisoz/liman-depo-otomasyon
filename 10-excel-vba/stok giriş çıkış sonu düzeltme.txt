@@ -1,0 +1,9 @@
+ExitHandler:
+
+    If Not Intersect(Target, Me.Columns("D")) Is Nothing Then
+        Application.EnableEvents = False
+        SatirlariGizle_Sayim_Duzeltme
+    End If
+
+    Application.EnableEvents = True
+End Sub

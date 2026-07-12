@@ -1,0 +1,79 @@
+STOK GİRİŞ ÇIKIŞ – MAKRO SON HALİ (DONMA YAPMAYAN SÜRÜM)
+
+Bu dosya, makroların en güncel ve doğru çalışan sürümünü içerir.
+
+------------------------------------------------------------------------
+
+✅ 1) MODÜLE EKLENECEK ANA MAKRO
+
+Insert → Module (Module1) içine yapıştır:
+
+    Sub SatirlariGizle_Sayim_Duzeltme()
+        Dim ws As Worksheet
+        Dim lastRow As Long
+        Dim i As Long
+        Dim deger As String
+
+        Set ws = ThisWorkbook.Worksheets("STOK GİRİŞ ÇIKIŞ")
+
+        Application.ScreenUpdating = False
+        Application.EnableEvents = False
+
+        ' Tüm satırları açan satır kaldırıldı
+        ' ws.Rows.Hidden = False
+
+        lastRow = ws.Cells(ws.Rows.Count, "D").End(xlUp).Row
+
+        For i = 2 To lastRow
+            deger = UCase$(CStr(ws.Cells(i, "D").Value))
+
+            If deger = "SAYIM" Or deger = "DÜZELTME" Or deger = "DUZELTME" Then
+                ws.Rows(i).Hidden = True
+            End If
+        Next i
+
+        Application.EnableEvents = True
+        Application.ScreenUpdating = True
+    End Sub
+
+------------------------------------------------------------------------
+
+✅ 2) STOK GİRİŞ ÇIKIŞ SAYFASINDAKİ MEVCUT Worksheet_Change KODUNUN SONUNA EKLENECEK SATIRLAR
+
+Sayfa kodunda Worksheet_Change içindeki ExitHandler bölümünü şu şekilde
+yap:
+
+    ExitHandler:
+        Application.EnableEvents = True
+
+        If Not Intersect(Target, Me.Columns("D")) Is Nothing Then
+            SatirlariGizle_Sayim_Duzeltme
+        End If
+    End Sub
+
+Eklenen bölüm:
+
+    If Not Intersect(Target, Me.Columns("D")) Is Nothing Then
+        SatirlariGizle_Sayim_Duzeltme
+    End If
+
+------------------------------------------------------------------------
+
+✅ 3) STOK GİRİŞ ÇIKIŞ SAYFASININ EN ALTINA YENİ EVENT
+
+Sayfa kodunun en altına ekle:
+
+    Private Sub Worksheet_Activate()
+        SatirlariGizle_Sayim_Duzeltme
+    End Sub
+
+------------------------------------------------------------------------
+
+📌 SON NOTLAR
+
+-   Gizli satırlar makro tarafından otomatik açılmaz
+-   Sadece SAYIM / DÜZELTME olan satırlar gizli kalır
+-   Excel donma yapmaz
+-   Kısayol makron ile çakışma olmaz
+
+Bu son sürüm tamamen optimize edilmiştir ✔
