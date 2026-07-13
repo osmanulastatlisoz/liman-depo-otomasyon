@@ -24,7 +24,7 @@ klavye kısayolları ve fokus çalmayan yardımcı pencereler.
 | `08-kkd-zimmet-uretim` | Zimmet Üretim | ~700-800 personele kişiselleştirilmiş Word zimmet belgesi üretir ve teyitli yazdırır |
 | `09-tutanak-uretim` | Tutanak Üretim | Kısaltma kodlarından yıkama/garaj tutanağı üretir (logo+makro korumalı) |
 | `10-excel-vba` | VBA Modülleri | Excel dosyalarının içindeki makroların dışa aktarılmış yedekleri + kurulum rehberi |
-| `11-excel-dosyalari` | Excel Dosyaları | Çalışan .xlsm'lerin tanıtımı — gerçek veri içerdiği için dosyalar bu depoda YOK, yalnızca açıklama README'si var |
+| `11-excel-dosyalari` | Excel Dosyaları | Güncel stok sisteminin **anonimleştirilmiş çalışan kopyası** (isimler kurgu) + diğer dosyaların tanıtımı |
 | `12-dolap-karsilastirma` | Dolap Karşılaştırma | Dolap almamış personeli çıkarır; ayrılmış dolapları yeni kullanıcıya devreder (3 araç) |
 | `13-beden-eslestir` | Beden Eşleştir | Beden listesinde isimleri düzeltir, ayrılmışların satırlarını çıkarır (biçim korumalı) |
 
@@ -95,6 +95,8 @@ Uçtan uca kullanım anlatımı: `KULLANIM-KILAVUZU.md`.
   rastgeledir. Ayrıntı: her iki klasördeki `ORNEK_VERI_BEYANI.md` ve dosyaların
   içindeki **BEYAN** sayfaları. Bu klasörler KVKK açısından paylaşıma uygundur.
 - Kod klasörleri (01-10, 12, 13) kişisel veri içermez.
-- **`11-excel-dosyalari`**: çalışan .xlsm'ler gerçek veri (personel adları,
-  stok kayıtları) içerdiğinden **bu depoya dahil edilmemiştir** (`.gitignore`
-  ile dışlanır); klasörde yalnızca dosyaları tanıtan bir README bulunur.
+- **`11-excel-dosyalari`**: gerçek verili .xlsm yedekleri depoya dahil değildir
+  (`.gitignore`). İstisna: `TCH_STOK_TAKIP_CALISMASI GÜNCEL.xlsm`'in
+  **anonimleştirilmiş kopyası** paylaşılmıştır — ~1.550 personel adı tutarlı
+  kurgu isimlerle değiştirildi, plaka/açıklama ve tedarikçi alanları boşaltıldı;
+  tüm iç parçalar tarandı, gerçek isim kalıntısı **0**. Ayrıntı: klasör README'si.
